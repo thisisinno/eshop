@@ -1,38 +1,10 @@
+"use client";
 import Breadcrumb from "@/components/Breadcrumbs/Breadcrumb";
-import { auth } from "@/lib/auth";
-import type { Metadata } from "next";
-import { headers } from "next/headers";
-import { PersonalInfoForm } from "./_components/personal-info";
-import { UploadPhotoForm } from "./_components/upload-photo";
+import { getCurrentUser, getStoredUser, type DjangoUser } from "@/lib/auth/django-auth-client";
+import { useEffect, useState } from "react";
 
-export const metadata: Metadata = {
-  title: "Settings Page",
-};
-
-export default async function SettingsPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const user = session?.user;
-
-  return (
-    <div className="mx-auto w-full max-w-270">
-      <Breadcrumb pageName="Settings" />
-
-      <div className="grid grid-cols-5 gap-8">
-        <div className="col-span-5 xl:col-span-3">
-          <PersonalInfoForm
-            name={user?.name!}
-            email={user?.email!}
-            bio={user?.bio ?? undefined}
-            phoneNumber={user?.phoneNumber?.toString()}
-          />
-        </div>
-        <div className="col-span-5 xl:col-span-2">
-          <UploadPhotoForm initialImage={user?.image ?? null} />
-        </div>
-      </div>
-    </div>
-  );
+export default function SettingsPage() {
+  const [user, setUser] = useState<DjangoUser | null>(null);
+  useEffect(() => { setUser(getStoredUser()); getCurrentUser().then(setUser).catch(() => undefined); }, []);
+  return <div className="mx-auto w-full max-w-270"><Breadcrumb pageName="Settings" /><section className="rounded-[10px] bg-white p-7 shadow-1 dark:bg-gray-dark dark:shadow-card"><h1 className="text-xl font-semibold text-dark dark:text-white">Account Settings</h1><dl className="mt-5 grid gap-3 sm:grid-cols-2"><div><dt className="text-sm text-gray-6">Username</dt><dd>{user?.username || "—"}</dd></div><div><dt className="text-sm text-gray-6">Email</dt><dd>{user?.email || "—"}</dd></div></dl></section></div>;
 }

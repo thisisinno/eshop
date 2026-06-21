@@ -33,6 +33,9 @@ Copy the example env file and fill in your credentials:
 cp .env.example .env.local
 ```
 
+Set `NEXT_PUBLIC_DJANGO_API_URL` to `http://127.0.0.1:8000/api` for local Django
+development, or `https://eshop.schoolsoft.online/api` in production.
+
 Then start the dev server:
 
 ```bash

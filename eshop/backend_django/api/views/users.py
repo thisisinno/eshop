@@ -1,91 +1,72 @@
 from django.contrib.auth.models import Group, Permission, User
-from rest_framework import viewsets
-from rest_framework.decorators import action
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from api.permissions import HasModulePermission
 from api.serializers import AdminUserSerializer, PermissionSerializer, RoleSerializer
 
 
-class AuthManagementViewSet(viewsets.ModelViewSet):
+class ManagedAPIView(APIView):
     permission_classes = [HasModulePermission]
-
-    def get_permissions(self):
-        self.permission_required = "auth.view_user" if self.action in ("list", "retrieve") else "auth.change_user"
-        return super().get_permissions()
+    permission_required = ""
 
 
-class AdminUserViewSet(AuthManagementViewSet):
-    queryset = User.objects.prefetch_related("groups", "user_permissions").all().order_by("username")
-    serializer_class = AdminUserSerializer
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        if search := self.request.query_params.get("search"):
-            from django.db.models import Q
-            queryset = queryset.filter(Q(username__icontains=search) | Q(email__icontains=search) | Q(first_name__icontains=search) | Q(last_name__icontains=search))
-        return queryset
-
-    def get_permissions(self):
-        if self.action == "create":
-            self.permission_required = "auth.add_user"
-        elif self.action == "destroy":
-            self.permission_required = "auth.delete_user"
-        elif self.action in ("list", "retrieve"):
-            self.permission_required = "auth.view_user"
-        else:
-            self.permission_required = "auth.change_user"
-        return super(AuthManagementViewSet, self).get_permissions()
-
-    @action(detail=True, methods=["patch"])
-    def activate(self, request, pk=None):
-        user = self.get_object(); user.is_active = True; user.save(update_fields=["is_active"])
-        return Response(self.get_serializer(user).data)
-
-    @action(detail=True, methods=["patch"])
-    def deactivate(self, request, pk=None):
-        user = self.get_object(); user.is_active = False; user.save(update_fields=["is_active"])
-        return Response(self.get_serializer(user).data)
-
-    @action(detail=True, methods=["patch"])
-    def set_password(self, request, pk=None):
-        password = request.data.get("password")
-        if not password:
-            return Response({"password": ["This field is required."]}, status=400)
-        user = self.get_object(); user.set_password(password); user.save(update_fields=["password"])
-        return Response({"detail": "Password updated."})
-
-    @action(detail=True, methods=["patch"])
-    def assign_roles(self, request, pk=None):
-        user = self.get_object(); user.groups.set(request.data.get("groups", []))
-        return Response(self.get_serializer(user).data)
+class UsersAPIView(ManagedAPIView):
+    def get(self, request):
+        self.permission_required = "auth.view_user"
+        users = User.objects.prefetch_related("groups", "user_permissions").all().order_by("username")
+        if search := request.query_params.get("search"):
+            users = users.filter(Q(username__icontains=search) | Q(email__icontains=search) | Q(first_name__icontains=search) | Q(last_name__icontains=search))
+        return Response(AdminUserSerializer(users, many=True).data)
+    def post(self, request):
+        self.permission_required = "auth.add_user"; serializer = AdminUserSerializer(data=request.data); serializer.is_valid(raise_exception=True)
+        return Response(AdminUserSerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
 
 
-class RoleViewSet(viewsets.ModelViewSet):
-    queryset = Group.objects.prefetch_related("permissions", "user_set").all().order_by("name")
-    serializer_class = RoleSerializer
-    permission_classes = [HasModulePermission]
-
-    def get_permissions(self):
-        self.permission_required = "auth.view_group" if self.action in ("list", "retrieve") else "auth.change_group"
-        if self.action == "create": self.permission_required = "auth.add_group"
-        if self.action == "destroy": self.permission_required = "auth.delete_group"
-        return super().get_permissions()
+class UserDetailAPIView(ManagedAPIView):
+    def object(self, pk): return get_object_or_404(User.objects.prefetch_related("groups", "user_permissions"), pk=pk)
+    def get(self, request, pk): self.permission_required = "auth.view_user"; return Response(AdminUserSerializer(self.object(pk)).data)
+    def put(self, request, pk): return self.update(request, pk)
+    def patch(self, request, pk): return self.update(request, pk, True)
+    def update(self, request, pk, partial=False):
+        self.permission_required = "auth.change_user"; serializer = AdminUserSerializer(self.object(pk), data=request.data, partial=partial); serializer.is_valid(raise_exception=True); return Response(AdminUserSerializer(serializer.save()).data)
+    def delete(self, request, pk): self.permission_required = "auth.delete_user"; self.object(pk).delete(); return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Permission.objects.select_related("content_type").all().order_by("content_type__app_label", "content_type__model", "codename")
-    serializer_class = PermissionSerializer
-    permission_classes = [HasModulePermission]
-    permission_required = "auth.view_permission"
+class UserActionAPIView(ManagedAPIView):
+    def patch(self, request, pk, action):
+        user = get_object_or_404(User, pk=pk)
+        if action == "activate": self.permission_required = "auth.change_user"; user.is_active = True; user.save(update_fields=["is_active"]); return Response(AdminUserSerializer(user).data)
+        if action == "deactivate": self.permission_required = "auth.change_user"; user.is_active = False; user.save(update_fields=["is_active"]); return Response(AdminUserSerializer(user).data)
+        if action == "set_password":
+            self.permission_required = "auth.change_user"; password = request.data.get("password")
+            if not password: return Response({"password": ["This field is required."]}, status=400)
+            user.set_password(password); user.save(update_fields=["password"]); return Response({"detail": "Password updated."})
+        if action == "assign_roles": self.permission_required = "auth.change_user"; user.groups.set(request.data.get("groups", [])); return Response(AdminUserSerializer(user).data)
+        return Response({"detail": "Unknown action."}, status=404)
 
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        if app_label := self.request.query_params.get("app_label"):
-            queryset = queryset.filter(content_type__app_label=app_label)
-        if model := self.request.query_params.get("model"):
-            queryset = queryset.filter(content_type__model=model)
-        if search := self.request.query_params.get("search"):
-            from django.db.models import Q
-            queryset = queryset.filter(Q(codename__icontains=search) | Q(name__icontains=search))
-        return queryset
+
+class RolesAPIView(ManagedAPIView):
+    def get(self, request): self.permission_required = "auth.view_group"; return Response(RoleSerializer(Group.objects.prefetch_related("permissions", "user_set").all().order_by("name"), many=True).data)
+    def post(self, request): self.permission_required = "auth.add_group"; serializer = RoleSerializer(data=request.data); serializer.is_valid(raise_exception=True); return Response(RoleSerializer(serializer.save()).data, status=201)
+
+
+class RoleDetailAPIView(ManagedAPIView):
+    def object(self, pk): return get_object_or_404(Group.objects.prefetch_related("permissions", "user_set"), pk=pk)
+    def get(self, request, pk): self.permission_required = "auth.view_group"; return Response(RoleSerializer(self.object(pk)).data)
+    def put(self, request, pk): return self.update(request, pk)
+    def patch(self, request, pk): return self.update(request, pk, True)
+    def update(self, request, pk, partial=False): self.permission_required = "auth.change_group"; serializer = RoleSerializer(self.object(pk), data=request.data, partial=partial); serializer.is_valid(raise_exception=True); return Response(RoleSerializer(serializer.save()).data)
+    def delete(self, request, pk): self.permission_required = "auth.delete_group"; self.object(pk).delete(); return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PermissionsAPIView(ManagedAPIView):
+    def get(self, request):
+        self.permission_required = "auth.view_permission"; permissions = Permission.objects.select_related("content_type").all().order_by("content_type__app_label", "content_type__model", "codename")
+        for field, lookup in (("app_label", "content_type__app_label"), ("model", "content_type__model")):
+            if value := request.query_params.get(field): permissions = permissions.filter(**{lookup: value})
+        if search := request.query_params.get("search"): permissions = permissions.filter(Q(codename__icontains=search) | Q(name__icontains=search))
+        return Response(PermissionSerializer(permissions, many=True).data)

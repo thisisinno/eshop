@@ -1,14 +1,19 @@
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 
-from api.views import AdminUserViewSet, PermissionViewSet, RoleViewSet, TraderAgreementViewSet, TraderBranchViewSet, TraderDocumentViewSet, TraderProfileViewSet
+from api.views.auth import MeAPIView, SigninAPIView, SignoutAPIView, SignupAPIView
+from api.views.registration import (AgreementActionAPIView, AgreementDetailAPIView, AgreementsAPIView,
+    BranchDetailAPIView, BranchesAPIView, DocumentActionAPIView, DocumentDetailAPIView, DocumentsAPIView,
+    TraderActionAPIView, TraderDetailAPIView, TradersAPIView)
+from api.views.users import (PermissionsAPIView, RoleDetailAPIView, RolesAPIView, UserActionAPIView,
+    UserDetailAPIView, UsersAPIView)
 
-router = DefaultRouter()
-router.register("registration/traders", TraderProfileViewSet, basename="trader")
-router.register("registration/agreements", TraderAgreementViewSet, basename="agreement")
-router.register("registration/documents", TraderDocumentViewSet, basename="document")
-router.register("registration/branches", TraderBranchViewSet, basename="branch")
-router.register("users", AdminUserViewSet, basename="user")
-router.register("roles", RoleViewSet, basename="role")
-router.register("permissions", PermissionViewSet, basename="permission")
-
-urlpatterns = router.urls
+urlpatterns = [
+    path("auth/signup/", SignupAPIView.as_view()), path("auth/signin/", SigninAPIView.as_view()),
+    path("auth/signout/", SignoutAPIView.as_view()), path("auth/me/", MeAPIView.as_view()),
+    path("registration/traders/", TradersAPIView.as_view()), path("registration/traders/<int:pk>/", TraderDetailAPIView.as_view()), path("registration/traders/<int:pk>/<str:action>/", TraderActionAPIView.as_view()),
+    path("registration/agreements/", AgreementsAPIView.as_view()), path("registration/agreements/<int:pk>/", AgreementDetailAPIView.as_view()), path("registration/agreements/<int:pk>/<str:action>/", AgreementActionAPIView.as_view()),
+    path("registration/documents/", DocumentsAPIView.as_view()), path("registration/documents/<int:pk>/", DocumentDetailAPIView.as_view()), path("registration/documents/<int:pk>/<str:action>/", DocumentActionAPIView.as_view()),
+    path("registration/branches/", BranchesAPIView.as_view()), path("registration/branches/<int:pk>/", BranchDetailAPIView.as_view()),
+    path("users/", UsersAPIView.as_view()), path("users/<int:pk>/", UserDetailAPIView.as_view()), path("users/<int:pk>/<str:action>/", UserActionAPIView.as_view()),
+    path("roles/", RolesAPIView.as_view()), path("roles/<int:pk>/", RoleDetailAPIView.as_view()), path("permissions/", PermissionsAPIView.as_view()),
+]

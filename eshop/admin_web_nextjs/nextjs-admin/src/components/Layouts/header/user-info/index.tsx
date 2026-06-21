@@ -6,19 +6,26 @@ import {
   DropdownContent,
   DropdownTrigger,
 } from "@/components/ui/dropdown";
-import { signOut, useSession } from "@/lib/auth/auth-client";
+import { getCurrentUser, getStoredUser, signOut, type DjangoUser } from "@/lib/auth/django-auth-client";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { LogOutIcon, SettingsIcon, UserIcon } from "./icons";
 
 export function UserInfo() {
   const [isOpen, setIsOpen] = useState(false);
   const router = useRouter();
-  const session = useSession();
+  const [user, setUser] = useState<DjangoUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const stored = getStoredUser();
+    if (stored) setUser(stored);
+    getCurrentUser().then(setUser).catch(() => undefined).finally(() => setLoading(false));
+  }, []);
 
   async function handleLogout() {
     setIsOpen(false);
@@ -35,7 +42,7 @@ export function UserInfo() {
     }
   }
 
-  if (session.isPending) {
+  if (loading) {
     return (
       <div className="flex items-center gap-3" role="presentation">
         <span className="inline-block size-12 animate-pulse rounded-full bg-gray-200" />
@@ -52,11 +59,7 @@ export function UserInfo() {
     );
   }
 
-  const user = {
-    name: session?.data?.user?.name as string,
-    email: session?.data?.user?.email as string,
-    img: session?.data?.user?.image as string,
-  };
+  const displayUser = { name: [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.username || "User", email: user?.email || "", img: "" };
 
   return (
     <Dropdown isOpen={isOpen} setIsOpen={setIsOpen}>
@@ -64,11 +67,11 @@ export function UserInfo() {
         <span className="sr-only">My Account</span>
 
         <figure className="flex items-center gap-3">
-          {user?.img ? (
+          {displayUser.img ? (
             <Image
-              src={user.img}
+              src="/images/user/user-01.png"
               className="size-12 overflow-hidden rounded-full object-cover"
-              alt={`Avatar of ${user.name}`}
+              alt={`Avatar of ${displayUser.name}`}
               role="presentation"
               width={200}
               height={200}
@@ -77,7 +80,7 @@ export function UserInfo() {
             <UserAvatar />
           )}
           <figcaption className="flex items-center gap-1 font-medium text-dark max-[1024px]:sr-only dark:text-dark-6">
-            <span className="max-w-24 truncate">{user.name}</span>
+            <span className="max-w-24 truncate">{displayUser.name}</span>
 
             <ChevronUpIcon
               aria-hidden
@@ -98,11 +101,11 @@ export function UserInfo() {
         <h2 className="sr-only">User information</h2>
 
         <figure className="flex items-center gap-2.5 px-5 py-3.5">
-          {user?.img ? (
+          {displayUser.img ? (
             <Image
-              src={user.img}
+              src="/images/user/user-01.png"
               className="size-12 shrink-0 overflow-hidden rounded-full object-cover object-center"
-              alt={`Avatar of ${user.name}`}
+              alt={`Avatar of ${displayUser.name}`}
               role="presentation"
               width={48}
               height={48}
@@ -113,11 +116,11 @@ export function UserInfo() {
 
           <figcaption className="space-y-1 text-base font-medium">
             <div className="mb-2 leading-none text-dark dark:text-white">
-              {user.name}
+              {displayUser.name}
             </div>
 
             <div className="w-full max-w-47.5 truncate leading-none text-gray-6">
-              {user.email}
+              {displayUser.email}
             </div>
           </figcaption>
         </figure>

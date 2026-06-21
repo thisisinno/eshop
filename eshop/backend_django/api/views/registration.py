@@ -1,200 +1,119 @@
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import status, viewsets
-from rest_framework.decorators import action
+from rest_framework import status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from api.models import TraderAgreement, TraderBranch, TraderDocument, TraderProfile
 from api.permissions import HasModulePermission
-from api.serializers import (
-    TraderAgreementSerializer, TraderBranchSerializer, TraderDocumentSerializer,
-    TraderProfileDetailSerializer, TraderProfileListSerializer, TraderProfileWriteSerializer,
-)
+from api.serializers import (TraderAgreementSerializer, TraderBranchSerializer,
+    TraderDocumentSerializer, TraderProfileDetailSerializer, TraderProfileListSerializer,
+    TraderProfileWriteSerializer)
 
 
-class PermissionedModelViewSet(viewsets.ModelViewSet):
+class PermissionedAPIView(APIView):
     permission_classes = [HasModulePermission]
     parser_classes = [JSONParser, FormParser, MultiPartParser]
-    permission_prefix = ""
-    action_permission_map = {}
-
-    def get_permissions(self):
-        if self.action in self.action_permission_map:
-            self.permission_required = self.action_permission_map[self.action]
-        action_permissions = {
-            "list": "view", "retrieve": "view", "create": "add", "update": "change",
-            "partial_update": "change", "destroy": "delete",
-        }
-        operation = action_permissions.get(self.action)
-        if operation:
-            self.permission_required = f"api.{operation}_{self.permission_prefix}"
-        return super().get_permissions()
+    permission_required = ""
 
 
-class TraderProfileViewSet(PermissionedModelViewSet):
-    queryset = TraderProfile.objects.all()
-    permission_prefix = "traderprofile"
-    search_fields = ("business_name", "owner_full_name", "phone", "email", "tin_number", "registration_number")
-    ordering_fields = ("created_at", "updated_at", "business_name")
-    action_permission_map = {
-        "approve": "api.approve_traderprofile",
-        "reject": "api.change_traderprofile",
-        "suspend": "api.suspend_traderprofile",
-        "feature": "api.change_traderprofile",
-    }
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            from django.db.models import Q
-            query = Q()
-            for field in self.search_fields:
-                query |= Q(**{f"{field}__icontains": search})
-            queryset = queryset.filter(query)
+class TradersAPIView(PermissionedAPIView):
+    def get(self, request):
+        self.permission_required = "api.view_traderprofile"
+        queryset = TraderProfile.objects.all()
+        if search := request.query_params.get("search"):
+            queryset = queryset.filter(Q(business_name__icontains=search) | Q(owner_full_name__icontains=search) | Q(phone__icontains=search) | Q(email__icontains=search))
         for field in ("trader_type", "status", "is_verified", "is_featured", "region", "district"):
-            value = self.request.query_params.get(field)
-            if value not in (None, ""):
-                queryset = queryset.filter(**{field: value})
-        ordering = self.request.query_params.get("ordering")
-        if ordering and ordering.lstrip("-") in self.ordering_fields:
-            queryset = queryset.order_by(ordering)
-        return queryset
+            if value := request.query_params.get(field): queryset = queryset.filter(**{field: value})
+        return Response(TraderProfileListSerializer(queryset, many=True).data)
 
-    def get_serializer_class(self):
-        if self.action == "list":
-            return TraderProfileListSerializer
-        if self.action == "retrieve":
-            return TraderProfileDetailSerializer
-        return TraderProfileWriteSerializer
+    def post(self, request):
+        self.permission_required = "api.add_traderprofile"
+        serializer = TraderProfileWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        trader = serializer.save(created_by=request.user)
+        return Response(TraderProfileDetailSerializer(trader).data, status=status.HTTP_201_CREATED)
 
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
 
-    @action(detail=True, methods=["patch"])
-    def approve(self, request, pk=None):
-        self.permission_required = "api.approve_traderprofile"
-        self.check_permissions(request)
-        trader = self.get_object()
-        trader.status = TraderProfile.Status.APPROVED
-        trader.is_verified = True
-        trader.approved_by = request.user
-        trader.approved_at = timezone.now()
-        trader.rejected_reason = ""
-        trader.save()
-        return Response(TraderProfileDetailSerializer(trader).data)
-
-    @action(detail=True, methods=["patch"])
-    def reject(self, request, pk=None):
+class TraderDetailAPIView(PermissionedAPIView):
+    def get_object(self, pk): return get_object_or_404(TraderProfile, pk=pk)
+    def get(self, request, pk):
+        self.permission_required = "api.view_traderprofile"
+        return Response(TraderProfileDetailSerializer(self.get_object(pk)).data)
+    def put(self, request, pk): return self.update(request, pk)
+    def patch(self, request, pk): return self.update(request, pk, partial=True)
+    def update(self, request, pk, partial=False):
         self.permission_required = "api.change_traderprofile"
-        self.check_permissions(request)
-        trader = self.get_object()
-        trader.status = TraderProfile.Status.REJECTED
-        trader.is_verified = False
-        trader.rejected_reason = request.data.get("rejected_reason", "")
-        trader.save()
+        serializer = TraderProfileWriteSerializer(self.get_object(pk), data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True); trader = serializer.save()
         return Response(TraderProfileDetailSerializer(trader).data)
-
-    @action(detail=True, methods=["patch"])
-    def suspend(self, request, pk=None):
-        self.permission_required = "api.suspend_traderprofile"
-        self.check_permissions(request)
-        trader = self.get_object()
-        trader.status = TraderProfile.Status.SUSPENDED
-        trader.is_verified = False
-        trader.save()
-        return Response(TraderProfileDetailSerializer(trader).data)
-
-    @action(detail=True, methods=["patch"])
-    def feature(self, request, pk=None):
-        self.permission_required = "api.change_traderprofile"
-        self.check_permissions(request)
-        trader = self.get_object()
-        trader.is_featured = request.data.get("is_featured", not trader.is_featured)
-        trader.save(update_fields=["is_featured", "updated_at"])
-        return Response(TraderProfileDetailSerializer(trader).data)
+    def delete(self, request, pk):
+        self.permission_required = "api.delete_traderprofile"; self.get_object(pk).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class TraderAgreementViewSet(PermissionedModelViewSet):
-    queryset = TraderAgreement.objects.select_related("trader").all()
-    serializer_class = TraderAgreementSerializer
-    permission_prefix = "traderagreement"
-    action_permission_map = {
-        "activate": "api.activate_traderagreement",
-        "terminate": "api.terminate_traderagreement",
-    }
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        search = self.request.query_params.get("search")
-        if search:
-            from django.db.models import Q
-            queryset = queryset.filter(Q(trader__business_name__icontains=search) | Q(title__icontains=search))
-        for field in ("status", "commission_type"):
-            if value := self.request.query_params.get(field):
-                queryset = queryset.filter(**{field: value})
-        return queryset
-
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user)
-
-    @action(detail=True, methods=["patch"])
-    def activate(self, request, pk=None):
-        self.permission_required = "api.activate_traderagreement"
-        self.check_permissions(request)
-        agreement = self.get_object()
-        if not agreement.signed_by_trader or not agreement.signed_by_platform:
-            return Response({"detail": "Both trader and platform must sign before activation."}, status=status.HTTP_400_BAD_REQUEST)
-        agreement.status = TraderAgreement.Status.ACTIVE
-        agreement.save(update_fields=["status", "updated_at"])
-        return Response(self.get_serializer(agreement).data)
-
-    @action(detail=True, methods=["patch"])
-    def terminate(self, request, pk=None):
-        self.permission_required = "api.terminate_traderagreement"
-        self.check_permissions(request)
-        agreement = self.get_object()
-        agreement.status = TraderAgreement.Status.TERMINATED
-        agreement.save(update_fields=["status", "updated_at"])
-        return Response(self.get_serializer(agreement).data)
+class TraderActionAPIView(PermissionedAPIView):
+    def patch(self, request, pk, action):
+        trader = get_object_or_404(TraderProfile, pk=pk)
+        if action == "approve":
+            self.permission_required = "api.approve_traderprofile"; trader.status = TraderProfile.Status.APPROVED; trader.is_verified = True; trader.approved_by = request.user; trader.approved_at = timezone.now(); trader.rejected_reason = ""
+        elif action == "reject":
+            self.permission_required = "api.change_traderprofile"; trader.status = TraderProfile.Status.REJECTED; trader.is_verified = False; trader.rejected_reason = request.data.get("rejected_reason", "")
+        elif action == "suspend":
+            self.permission_required = "api.suspend_traderprofile"; trader.status = TraderProfile.Status.SUSPENDED; trader.is_verified = False
+        elif action == "feature":
+            self.permission_required = "api.change_traderprofile"; trader.is_featured = request.data.get("is_featured", not trader.is_featured)
+        else: return Response({"detail": "Unknown action."}, status=status.HTTP_404_NOT_FOUND)
+        trader.save(); return Response(TraderProfileDetailSerializer(trader).data)
 
 
-class TraderDocumentViewSet(PermissionedModelViewSet):
-    queryset = TraderDocument.objects.select_related("trader").all()
-    serializer_class = TraderDocumentSerializer
-    permission_prefix = "traderdocument"
-    action_permission_map = {"verify": "api.change_traderdocument"}
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        for field in ("trader", "document_type", "verified"):
-            if value := self.request.query_params.get(field):
-                queryset = queryset.filter(**{field: value})
-        return queryset
-
-    def perform_create(self, serializer):
-        serializer.save(uploaded_by=self.request.user)
-
-    @action(detail=True, methods=["patch"])
-    def verify(self, request, pk=None):
-        self.permission_required = "api.change_traderdocument"
-        self.check_permissions(request)
-        document = self.get_object()
-        document.verified = True
-        document.verified_by = request.user
-        document.verified_at = timezone.now()
-        document.save()
-        return Response(self.get_serializer(document).data)
+class ModelCollectionAPIView(PermissionedAPIView):
+    model = serializer_class = permission_prefix = None
+    def get(self, request):
+        self.permission_required = f"api.view_{self.permission_prefix}"
+        return Response(self.serializer_class(self.model.objects.all(), many=True).data)
+    def post(self, request):
+        self.permission_required = f"api.add_{self.permission_prefix}"
+        serializer = self.serializer_class(data=request.data); serializer.is_valid(raise_exception=True)
+        kwargs = {"created_by": request.user} if self.model is TraderAgreement else {"uploaded_by": request.user} if self.model is TraderDocument else {}
+        return Response(self.serializer_class(serializer.save(**kwargs)).data, status=status.HTTP_201_CREATED)
 
 
-class TraderBranchViewSet(PermissionedModelViewSet):
-    queryset = TraderBranch.objects.select_related("trader").all()
-    serializer_class = TraderBranchSerializer
-    permission_prefix = "traderbranch"
+class ModelDetailAPIView(PermissionedAPIView):
+    model = serializer_class = permission_prefix = None
+    def object(self, pk): return get_object_or_404(self.model, pk=pk)
+    def get(self, request, pk): self.permission_required = f"api.view_{self.permission_prefix}"; return Response(self.serializer_class(self.object(pk)).data)
+    def put(self, request, pk): return self.update(request, pk)
+    def patch(self, request, pk): return self.update(request, pk, True)
+    def update(self, request, pk, partial=False):
+        self.permission_required = f"api.change_{self.permission_prefix}"; serializer = self.serializer_class(self.object(pk), data=request.data, partial=partial); serializer.is_valid(raise_exception=True); return Response(self.serializer_class(serializer.save()).data)
+    def delete(self, request, pk): self.permission_required = f"api.delete_{self.permission_prefix}"; self.object(pk).delete(); return Response(status=status.HTTP_204_NO_CONTENT)
 
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        for field in ("trader", "region", "district", "is_active"):
-            if value := self.request.query_params.get(field):
-                queryset = queryset.filter(**{field: value})
-        return queryset
+
+class AgreementsAPIView(ModelCollectionAPIView): model = TraderAgreement; serializer_class = TraderAgreementSerializer; permission_prefix = "traderagreement"
+class AgreementDetailAPIView(ModelDetailAPIView): model = TraderAgreement; serializer_class = TraderAgreementSerializer; permission_prefix = "traderagreement"
+class DocumentsAPIView(ModelCollectionAPIView): model = TraderDocument; serializer_class = TraderDocumentSerializer; permission_prefix = "traderdocument"
+class DocumentDetailAPIView(ModelDetailAPIView): model = TraderDocument; serializer_class = TraderDocumentSerializer; permission_prefix = "traderdocument"
+class BranchesAPIView(ModelCollectionAPIView): model = TraderBranch; serializer_class = TraderBranchSerializer; permission_prefix = "traderbranch"
+class BranchDetailAPIView(ModelDetailAPIView): model = TraderBranch; serializer_class = TraderBranchSerializer; permission_prefix = "traderbranch"
+
+
+class AgreementActionAPIView(PermissionedAPIView):
+    def patch(self, request, pk, action):
+        agreement = get_object_or_404(TraderAgreement, pk=pk)
+        if action == "activate":
+            self.permission_required = "api.activate_traderagreement"
+            if not agreement.signed_by_trader or not agreement.signed_by_platform: return Response({"detail": "Both trader and platform must sign before activation."}, status=400)
+            agreement.status = TraderAgreement.Status.ACTIVE
+        elif action == "terminate": self.permission_required = "api.terminate_traderagreement"; agreement.status = TraderAgreement.Status.TERMINATED
+        else: return Response({"detail": "Unknown action."}, status=404)
+        agreement.save(); return Response(TraderAgreementSerializer(agreement).data)
+
+
+class DocumentActionAPIView(PermissionedAPIView):
+    def patch(self, request, pk, action):
+        if action != "verify": return Response({"detail": "Unknown action."}, status=404)
+        self.permission_required = "api.change_traderdocument"; document = get_object_or_404(TraderDocument, pk=pk); document.verified = True; document.verified_by = request.user; document.verified_at = timezone.now(); document.save()
+        return Response(TraderDocumentSerializer(document).data)
