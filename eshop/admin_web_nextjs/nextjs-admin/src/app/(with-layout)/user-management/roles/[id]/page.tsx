@@ -1,0 +1,1 @@
+import { RoleDetailPage } from "@/components/admin/user-management-pages"; export default async function Page({ params }: { params: Promise<{ id: string }> }) { return <RoleDetailPage id={(await params).id} />; }

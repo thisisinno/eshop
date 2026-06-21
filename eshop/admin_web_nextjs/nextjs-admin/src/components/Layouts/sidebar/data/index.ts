@@ -4,92 +4,43 @@ export const NAV_DATA = [
   {
     label: "MAIN MENU",
     items: [
+      { title: "Dashboard", icon: Icons.HomeIcon, items: [{ title: "Overview", url: "/" }] },
+    ],
+  },
+  {
+    label: "REGISTRATION",
+    items: [
       {
-        title: "Dashboard",
-        icon: Icons.HomeIcon,
-        items: [
-          {
-            title: "eCommerce",
-            url: "/",
-          },
-        ],
-      },
-      {
-        title: "Calendar",
-        url: "/calendar",
-        icon: Icons.Calendar,
-        items: [],
-      },
-      {
-        title: "Profile",
-        url: "/profile",
+        title: "Traders / Companies",
         icon: Icons.User,
-        items: [],
-      },
-      {
-        title: "Forms",
-        icon: Icons.Alphabet,
         items: [
-          {
-            title: "Form Elements",
-            url: "/forms/form-elements",
-          },
-          {
-            title: "Form Layout",
-            url: "/forms/form-layout",
-          },
-        ],
-      },
-      {
-        title: "Tables",
-        url: "/tables",
-        icon: Icons.Table,
-        items: [
-          {
-            title: "Tables",
-            url: "/tables",
-          },
-        ],
-      },
-      {
-        title: "Pages",
-        icon: Icons.Alphabet,
-        items: [
-          {
-            title: "Settings",
-            url: "/pages/settings",
-          },
+          { title: "All Traders", url: "/registration/traders" },
+          { title: "Agreements", url: "/registration/agreements" },
+          { title: "Documents", url: "/registration/documents" },
+          { title: "Branches", url: "/registration/branches" },
         ],
       },
     ],
   },
   {
-    label: "OTHERS",
+    label: "ACCESS CONTROL",
     items: [
       {
-        title: "Charts",
-        icon: Icons.PieChart,
+        title: "User Management",
+        icon: Icons.Authentication,
         items: [
-          {
-            title: "Basic Chart",
-            url: "/charts/basic-chart",
-          },
+          { title: "Users", url: "/user-management/users" },
+          { title: "Roles", url: "/user-management/roles" },
+          { title: "Permissions", url: "/user-management/permissions" },
         ],
       },
-      {
-        title: "UI Elements",
-        icon: Icons.FourCircle,
-        items: [
-          {
-            title: "Alerts",
-            url: "/ui-elements/alerts",
-          },
-          {
-            title: "Buttons",
-            url: "/ui-elements/buttons",
-          },
-        ],
-      },
+    ],
+  },
+  {
+    label: "SYSTEM",
+    items: [
+      { title: "Settings", url: "/pages/settings", icon: Icons.Alphabet, items: [] },
+      { title: "Profile", url: "/profile", icon: Icons.User, items: [] },
     ],
   },
 ];

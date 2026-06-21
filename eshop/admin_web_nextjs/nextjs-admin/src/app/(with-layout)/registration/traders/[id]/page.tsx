@@ -1,0 +1,1 @@
+import { TraderDetailPage } from "@/components/admin/registration-pages"; export default async function Page({ params }: { params: Promise<{ id: string }> }) { return <TraderDetailPage id={(await params).id} />; }
