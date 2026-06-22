@@ -1,5 +1,7 @@
 from django.conf import settings
-from django.db import models
+import re
+
+from django.db import models, transaction
 from django.utils.text import slugify
 
 
@@ -16,6 +18,8 @@ class TraderProfile(models.Model):
 
     trader_type = models.CharField(max_length=20, choices=TraderType.choices)
     business_name = models.CharField(max_length=255)
+    # Human-readable business tracking ID. It is assigned once and never changes.
+    trader_code = models.CharField(max_length=180, unique=True, blank=True, db_index=True)
     slug = models.SlugField(max_length=280, unique=True, blank=True)
     owner_full_name = models.CharField(max_length=255, blank=True)
     registration_number = models.CharField(max_length=100, blank=True)
@@ -50,6 +54,9 @@ class TraderProfile(models.Model):
         ]
 
     def save(self, *args, **kwargs):
+        if self.pk:
+            # A trader code is an immutable tracking identifier, including for admin edits.
+            self.trader_code = TraderProfile.objects.only("trader_code").get(pk=self.pk).trader_code
         base_slug = slugify(self.business_name) or "trader"
         candidate = base_slug
         suffix = 1
@@ -57,7 +64,32 @@ class TraderProfile(models.Model):
             candidate = f"{base_slug}-{suffix}"
             suffix += 1
         self.slug = candidate
+        if self._state.adding and not self.trader_code:
+            # Lock existing codes while choosing the next number so concurrent creates
+            # do not normally select the same tracking number.
+            with transaction.atomic():
+                codes = list(TraderProfile.objects.select_for_update().values_list("trader_code", flat=True))
+                next_number = max((self._code_number(code) for code in codes), default=0) + 1
+                base_code = self._normalise_trader_name(self.business_name)
+                while True:
+                    candidate_code = f"{base_code}/{next_number:06d}"
+                    if candidate_code not in codes:
+                        self.trader_code = candidate_code
+                        break
+                    next_number += 1
+                return super().save(*args, **kwargs)
         super().save(*args, **kwargs)
+
+    @staticmethod
+    def _normalise_trader_name(name):
+        """Return a safe, stable name segment for a human-readable trader code."""
+        value = re.sub(r"[^A-Z0-9-]+", "-", (name or "").upper().replace(" ", "-"))
+        return (re.sub(r"-+", "-", value).strip("-") or "TRADER")[:173]
+
+    @staticmethod
+    def _code_number(code):
+        match = re.search(r"/(\d+)$", code or "")
+        return int(match.group(1)) if match else 0
 
     def __str__(self):
         return self.business_name

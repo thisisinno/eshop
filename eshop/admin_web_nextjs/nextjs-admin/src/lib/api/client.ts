@@ -7,13 +7,23 @@ const API_URL = (
 
 export class ApiError extends Error {
   constructor(public status: number, public data: unknown) {
-    super(
-      typeof data === "object" && data && "detail" in data
-        ? String(data.detail)
-        : "The request failed.",
-    );
+    super(formatApiError(data));
     this.name = "ApiError";
   }
+}
+
+/** Turn DRF's field errors into text that can be shown directly in a toast. */
+export function formatApiError(data: unknown): string {
+  if (typeof data === "string" && data.trim()) return data;
+  if (!data || typeof data !== "object") return "The request failed.";
+
+  const entries = Object.entries(data as Record<string, unknown>);
+  const messages = entries.flatMap(([field, value]) => {
+    const text = Array.isArray(value) ? value.join(" ") : typeof value === "string" ? value : "";
+    if (!text) return [];
+    return field === "detail" || field === "non_field_errors" ? [text] : [`${field.replaceAll("_", " ")}: ${text}`];
+  });
+  return messages.join(" ") || "The request failed.";
 }
 
 function getBrowserToken() {

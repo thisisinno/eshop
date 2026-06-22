@@ -5,10 +5,10 @@ from .models import Product, ProductCategory, ProductMedia, TraderAgreement, Tra
 
 @admin.register(TraderProfile)
 class TraderProfileAdmin(admin.ModelAdmin):
-    list_display = ("business_name", "trader_type", "phone", "status", "is_verified", "is_featured", "created_at")
+    list_display = ("business_name", "trader_code", "trader_type", "phone", "status", "is_verified", "is_featured", "created_at")
     list_filter = ("trader_type", "status", "is_verified", "is_featured", "region")
-    search_fields = ("business_name", "owner_full_name", "phone", "email", "tin_number", "registration_number")
-    readonly_fields = ("created_at", "updated_at", "approved_at")
+    search_fields = ("business_name", "trader_code", "owner_full_name", "phone", "email", "tin_number", "registration_number")
+    readonly_fields = ("trader_code", "created_at", "updated_at", "approved_at")
 
 
 @admin.register(TraderAgreement)

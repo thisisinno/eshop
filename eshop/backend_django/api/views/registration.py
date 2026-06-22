@@ -24,31 +24,41 @@ class TradersAPIView(PermissionedAPIView):
         self.permission_required = "api.view_traderprofile"
         queryset = TraderProfile.objects.all()
         if search := request.query_params.get("search"):
-            queryset = queryset.filter(Q(business_name__icontains=search) | Q(owner_full_name__icontains=search) | Q(phone__icontains=search) | Q(email__icontains=search))
+            queryset = queryset.filter(
+                Q(business_name__icontains=search) | Q(owner_full_name__icontains=search)
+                | Q(phone__icontains=search) | Q(email__icontains=search)
+                | Q(trader_code__icontains=search) | Q(registration_number__icontains=search)
+                | Q(tin_number__icontains=search)
+            )
         for field in ("trader_type", "status", "is_verified", "is_featured", "region", "district"):
             if value := request.query_params.get(field): queryset = queryset.filter(**{field: value})
-        return Response(TraderProfileListSerializer(queryset, many=True).data)
+        if limit := request.query_params.get("limit"):
+            try:
+                queryset = queryset[:max(1, min(int(limit), 100))]
+            except ValueError:
+                pass
+        return Response(TraderProfileListSerializer(queryset, many=True, context={"request": request}).data)
 
     def post(self, request):
         self.permission_required = "api.add_traderprofile"
         serializer = TraderProfileWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         trader = serializer.save(created_by=request.user)
-        return Response(TraderProfileDetailSerializer(trader).data, status=status.HTTP_201_CREATED)
+        return Response(TraderProfileDetailSerializer(trader, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 class TraderDetailAPIView(PermissionedAPIView):
     def get_object(self, pk): return get_object_or_404(TraderProfile, pk=pk)
     def get(self, request, pk):
         self.permission_required = "api.view_traderprofile"
-        return Response(TraderProfileDetailSerializer(self.get_object(pk)).data)
+        return Response(TraderProfileDetailSerializer(self.get_object(pk), context={"request": request}).data)
     def put(self, request, pk): return self.update(request, pk)
     def patch(self, request, pk): return self.update(request, pk, partial=True)
     def update(self, request, pk, partial=False):
         self.permission_required = "api.change_traderprofile"
         serializer = TraderProfileWriteSerializer(self.get_object(pk), data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True); trader = serializer.save()
-        return Response(TraderProfileDetailSerializer(trader).data)
+        return Response(TraderProfileDetailSerializer(trader, context={"request": request}).data)
     def delete(self, request, pk):
         self.permission_required = "api.delete_traderprofile"; self.get_object(pk).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -66,29 +76,29 @@ class TraderActionAPIView(PermissionedAPIView):
         elif action == "feature":
             self.permission_required = "api.change_traderprofile"; trader.is_featured = request.data.get("is_featured", not trader.is_featured)
         else: return Response({"detail": "Unknown action."}, status=status.HTTP_404_NOT_FOUND)
-        trader.save(); return Response(TraderProfileDetailSerializer(trader).data)
+        trader.save(); return Response(TraderProfileDetailSerializer(trader, context={"request": request}).data)
 
 
 class ModelCollectionAPIView(PermissionedAPIView):
     model = serializer_class = permission_prefix = None
     def get(self, request):
         self.permission_required = f"api.view_{self.permission_prefix}"
-        return Response(self.serializer_class(self.model.objects.all(), many=True).data)
+        return Response(self.serializer_class(self.model.objects.select_related("trader").all(), many=True, context={"request": request}).data)
     def post(self, request):
         self.permission_required = f"api.add_{self.permission_prefix}"
         serializer = self.serializer_class(data=request.data); serializer.is_valid(raise_exception=True)
         kwargs = {"created_by": request.user} if self.model is TraderAgreement else {"uploaded_by": request.user} if self.model is TraderDocument else {}
-        return Response(self.serializer_class(serializer.save(**kwargs)).data, status=status.HTTP_201_CREATED)
+        return Response(self.serializer_class(serializer.save(**kwargs), context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 class ModelDetailAPIView(PermissionedAPIView):
     model = serializer_class = permission_prefix = None
-    def object(self, pk): return get_object_or_404(self.model, pk=pk)
-    def get(self, request, pk): self.permission_required = f"api.view_{self.permission_prefix}"; return Response(self.serializer_class(self.object(pk)).data)
+    def object(self, pk): return get_object_or_404(self.model.objects.select_related("trader"), pk=pk)
+    def get(self, request, pk): self.permission_required = f"api.view_{self.permission_prefix}"; return Response(self.serializer_class(self.object(pk), context={"request": request}).data)
     def put(self, request, pk): return self.update(request, pk)
     def patch(self, request, pk): return self.update(request, pk, True)
     def update(self, request, pk, partial=False):
-        self.permission_required = f"api.change_{self.permission_prefix}"; serializer = self.serializer_class(self.object(pk), data=request.data, partial=partial); serializer.is_valid(raise_exception=True); return Response(self.serializer_class(serializer.save()).data)
+        self.permission_required = f"api.change_{self.permission_prefix}"; serializer = self.serializer_class(self.object(pk), data=request.data, partial=partial); serializer.is_valid(raise_exception=True); return Response(self.serializer_class(serializer.save(), context={"request": request}).data)
     def delete(self, request, pk): self.permission_required = f"api.delete_{self.permission_prefix}"; self.object(pk).delete(); return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -109,11 +119,11 @@ class AgreementActionAPIView(PermissionedAPIView):
             agreement.status = TraderAgreement.Status.ACTIVE
         elif action == "terminate": self.permission_required = "api.terminate_traderagreement"; agreement.status = TraderAgreement.Status.TERMINATED
         else: return Response({"detail": "Unknown action."}, status=404)
-        agreement.save(); return Response(TraderAgreementSerializer(agreement).data)
+        agreement.save(); return Response(TraderAgreementSerializer(agreement, context={"request": request}).data)
 
 
 class DocumentActionAPIView(PermissionedAPIView):
     def patch(self, request, pk, action):
         if action != "verify": return Response({"detail": "Unknown action."}, status=404)
         self.permission_required = "api.change_traderdocument"; document = get_object_or_404(TraderDocument, pk=pk); document.verified = True; document.verified_by = request.user; document.verified_at = timezone.now(); document.save()
-        return Response(TraderDocumentSerializer(document).data)
+        return Response(TraderDocumentSerializer(document, context={"request": request}).data)
