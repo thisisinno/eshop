@@ -6,6 +6,8 @@ from api.views.registration import (AgreementActionAPIView, AgreementDetailAPIVi
     TraderActionAPIView, TraderDetailAPIView, TradersAPIView)
 from api.views.users import (PermissionsAPIView, RoleDetailAPIView, RolesAPIView, UserActionAPIView,
     UserDetailAPIView, UsersAPIView)
+from api.views.catalog import (CategoriesAPIView, CategoryDetailAPIView, ProductActionAPIView,
+    ProductDetailAPIView, ProductMediaAPIView, ProductMediaDetailAPIView, ProductsAPIView)
 
 urlpatterns = [
     path("auth/signup/", SignupAPIView.as_view()), path("auth/signin/", SigninAPIView.as_view()),
@@ -16,4 +18,10 @@ urlpatterns = [
     path("registration/branches/", BranchesAPIView.as_view()), path("registration/branches/<int:pk>/", BranchDetailAPIView.as_view()),
     path("users/", UsersAPIView.as_view()), path("users/<int:pk>/", UserDetailAPIView.as_view()), path("users/<int:pk>/<str:action>/", UserActionAPIView.as_view()),
     path("roles/", RolesAPIView.as_view()), path("roles/<int:pk>/", RoleDetailAPIView.as_view()), path("permissions/", PermissionsAPIView.as_view()),
+    path("catalog/categories/", CategoriesAPIView.as_view()), path("catalog/categories/<int:pk>/", CategoryDetailAPIView.as_view()),
+    path("catalog/products/", ProductsAPIView.as_view()), path("catalog/products/<int:pk>/", ProductDetailAPIView.as_view()),
+    path("catalog/products/<int:pk>/media/", ProductMediaAPIView.as_view()),
+    path("catalog/products/<int:pk>/media/<int:media_id>/", ProductMediaDetailAPIView.as_view()),
+    path("catalog/products/<int:pk>/media/<int:media_id>/primary/", ProductMediaDetailAPIView.as_view()),
+    path("catalog/products/<int:pk>/<str:action>/", ProductActionAPIView.as_view()),
 ]

@@ -37,6 +37,20 @@ export const NAV_DATA = [
     ],
   },
   {
+    label: "CATALOG",
+    items: [
+      {
+        title: "Product Management",
+        icon: Icons.Table,
+        items: [
+          { title: "Products", url: "/catalog/products" },
+          { title: "Add Product", url: "/catalog/products/new" },
+          { title: "Categories", url: "/catalog/categories" },
+        ],
+      },
+    ],
+  },
+  {
     label: "SYSTEM",
     items: [
       { title: "Settings", url: "/pages/settings", icon: Icons.Alphabet, items: [] },

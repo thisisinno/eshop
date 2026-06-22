@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import TraderAgreement, TraderBranch, TraderDocument, TraderProfile
+from .models import Product, ProductCategory, ProductMedia, TraderAgreement, TraderBranch, TraderDocument, TraderProfile
 
 
 @admin.register(TraderProfile)
@@ -30,3 +30,26 @@ class TraderBranchAdmin(admin.ModelAdmin):
     list_display = ("name", "trader", "region", "district", "is_main_branch", "is_active")
     list_filter = ("region", "is_main_branch", "is_active")
     search_fields = ("name", "trader__business_name", "phone", "email")
+
+
+@admin.register(ProductCategory)
+class ProductCategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "parent", "is_active", "created_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "slug")
+    readonly_fields = ("slug", "created_at", "updated_at")
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ("product_id", "name", "trader", "branch", "price", "compare_at_price", "status", "is_featured", "position", "created_at")
+    list_filter = ("status", "is_featured", "category", "trader")
+    search_fields = ("product_id", "name", "sku", "trader__business_name")
+    readonly_fields = ("product_id", "slug", "created_at", "updated_at")
+
+
+@admin.register(ProductMedia)
+class ProductMediaAdmin(admin.ModelAdmin):
+    list_display = ("product", "media_type", "is_primary", "sort_order", "created_at")
+    list_filter = ("media_type", "is_primary")
+    search_fields = ("product__product_id", "product__name", "title")
