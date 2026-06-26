@@ -12,18 +12,40 @@ class ProductCategorySerializer(serializers.ModelSerializer):
 
 class ProductMediaSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
+    file_name = serializers.SerializerMethodField()
+    file_extension = serializers.SerializerMethodField()
+    is_image = serializers.SerializerMethodField()
+    is_clip = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductMedia
-        fields = ("id", "product", "media_type", "file", "file_url", "title", "alt_text", "is_primary", "sort_order", "created_by", "created_at")
+        fields = (
+            "id", "product", "media_type", "file", "file_url", "file_name", "file_extension", "is_image", "is_clip",
+            "title", "alt_text", "is_primary", "sort_order", "created_by", "created_at",
+        )
         read_only_fields = ("product", "created_by", "created_at")
 
     def get_file_url(self, obj):
         if not obj.file:
             return None
-        url = obj.file.url
+        try:
+            url = obj.file.url
+        except Exception:
+            return None
         request = self.context.get("request")
         return request.build_absolute_uri(url) if request and url.startswith("/") else url
+
+    def get_file_name(self, obj):
+        return obj.file.name.rsplit("/", 1)[-1] if obj.file else ""
+
+    def get_file_extension(self, obj):
+        return obj.file.name.rsplit(".", 1)[-1].lower() if obj.file and "." in obj.file.name else ""
+
+    def get_is_image(self, obj):
+        return obj.media_type == ProductMedia.MediaType.IMAGE
+
+    def get_is_clip(self, obj):
+        return obj.media_type == ProductMedia.MediaType.CLIP
 
 
 class ProductSummarySerializer(serializers.ModelSerializer):

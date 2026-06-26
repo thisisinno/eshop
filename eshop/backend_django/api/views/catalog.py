@@ -1,6 +1,6 @@
 from django.db.models import F, Q
 from django.shortcuts import get_object_or_404
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -145,7 +145,12 @@ class ProductMediaAPIView(PermissionedCatalogAPIView):
         product = get_object_or_404(Product, pk=pk)
         serializer = ProductMediaSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        media = serializer.save(product=product, created_by=request.user)
+        try:
+            media = serializer.save(product=product, created_by=request.user)
+        except serializers.ValidationError:
+            raise
+        except Exception as exc:
+            return Response({"detail": f"Media upload failed: {exc}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response(ProductMediaSerializer(media, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -161,6 +166,22 @@ class ProductMediaDetailAPIView(PermissionedCatalogAPIView):
 
     def patch(self, request, pk, media_id):
         media = self.get_object(pk, media_id)
+        serializer = ProductMediaSerializer(media, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        try:
+            media = serializer.save()
+        except serializers.ValidationError:
+            raise
+        except Exception as exc:
+            return Response({"detail": f"Media update failed: {exc}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(ProductMediaSerializer(media, context={"request": request}).data)
+
+
+class ProductMediaPrimaryAPIView(PermissionedCatalogAPIView):
+    permission_map = {"PATCH": "api.change_product"}
+
+    def patch(self, request, pk, media_id):
+        media = get_object_or_404(ProductMedia, product_id=pk, pk=media_id)
         media.is_primary = True
         media.save()
         return Response(ProductMediaSerializer(media, context={"request": request}).data)

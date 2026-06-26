@@ -6,7 +6,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import Q
-from django.db.models.signals import post_delete
+from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
 from django.utils.text import slugify
@@ -18,7 +18,9 @@ def product_media_upload_path(instance, filename):
     """Keep S3 objects grouped by product and use non-guessable filenames."""
     extension = os.path.splitext(filename)[1].lower()
     folder = "images" if instance.media_type == ProductMedia.MediaType.IMAGE else "clips"
-    return f"products/{instance.product.product_id}/{folder}/{uuid.uuid4().hex}{extension}"
+    safe_product_id = slugify(instance.product.product_id.replace("#", "")) or str(instance.product_id)
+    trader_part = f"trader-{instance.product.trader_id}"
+    return f"products/{trader_part}/{safe_product_id}/{folder}/{uuid.uuid4().hex}{extension}"
 
 
 class ProductCategory(models.Model):
@@ -149,7 +151,8 @@ class Product(models.Model):
     @property
     def primary_media(self):
         media = list(self.media.all()) if hasattr(self, "media") else []
-        return next((item for item in media if item.is_primary), None) or next((item for item in media if item.media_type == ProductMedia.MediaType.IMAGE), None)
+        images = [item for item in media if item.media_type == ProductMedia.MediaType.IMAGE]
+        return next((item for item in images if item.is_primary), None) or (images[0] if images else None)
 
     def __str__(self):
         return f"{self.product_id} - {self.name}"
@@ -198,4 +201,31 @@ class ProductMedia(models.Model):
 def delete_product_media_file(sender, instance, **kwargs):
     """Django cascade deletion emits this signal, so S3 objects are removed too."""
     if instance.file and instance.file.name:
-        instance.file.storage.delete(instance.file.name)
+        try:
+            instance.file.storage.delete(instance.file.name)
+        except Exception:
+            pass
+
+
+@receiver(pre_save, sender=ProductMedia)
+def remember_replaced_product_media_file(sender, instance, **kwargs):
+    if not instance.pk:
+        return
+    try:
+        old_file = ProductMedia.objects.only("file").get(pk=instance.pk).file
+    except ProductMedia.DoesNotExist:
+        return
+    old_name = old_file.name if old_file else ""
+    new_name = instance.file.name if instance.file else ""
+    instance._old_file_name = old_name if old_name and old_name != new_name else ""
+
+
+@receiver(post_save, sender=ProductMedia)
+def delete_replaced_product_media_file(sender, instance, **kwargs):
+    old_name = getattr(instance, "_old_file_name", "")
+    if not old_name:
+        return
+    try:
+        instance.file.storage.delete(old_name)
+    except Exception:
+        pass

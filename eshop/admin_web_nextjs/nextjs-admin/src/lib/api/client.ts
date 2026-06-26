@@ -6,16 +6,23 @@ const API_URL = (
 ).replace(/\/$/, "");
 
 export class ApiError extends Error {
-  constructor(public status: number, public data: unknown) {
-    super(formatApiError(data));
+  constructor(public status: number, public data: unknown, public path?: string) {
+    super(formatApiError(data, status, path));
     this.name = "ApiError";
   }
 }
 
 /** Turn DRF's field errors into text that can be shown directly in a toast. */
-export function formatApiError(data: unknown): string {
-  if (typeof data === "string" && data.trim()) return data;
-  if (!data || typeof data !== "object") return "The request failed.";
+export function formatApiError(data: unknown, status?: number, path?: string): string {
+  const prefix = status ? `Backend error ${status}${path ? ` on ${path}` : ""}.` : "";
+  if (typeof data === "string" && data.trim()) {
+    const text = data.trim();
+    if (/^<!doctype html>/i.test(text) || /<html[\s>]/i.test(text)) {
+      return `${prefix || "Backend returned HTML error page."} Check Django logs.`;
+    }
+    return prefix ? `${prefix} ${text}` : text;
+  }
+  if (!data || typeof data !== "object") return prefix || "The request failed.";
 
   const entries = Object.entries(data as Record<string, unknown>);
   const messages = entries.flatMap(([field, value]) => {
@@ -23,7 +30,8 @@ export function formatApiError(data: unknown): string {
     if (!text) return [];
     return field === "detail" || field === "non_field_errors" ? [text] : [`${field.replaceAll("_", " ")}: ${text}`];
   });
-  return messages.join(" ") || "The request failed.";
+  const message = messages.join(" ") || "The request failed.";
+  return prefix ? `${prefix} ${message}` : message;
 }
 
 function getBrowserToken() {
@@ -54,7 +62,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     ? await response.json()
     : await response.text();
 
-  if (!response.ok) throw new ApiError(response.status, data);
+  if (!response.ok) throw new ApiError(response.status, data, path.startsWith("/") ? path : `/${path}`);
   return data as T;
 }
 

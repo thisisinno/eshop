@@ -7,7 +7,7 @@ from api.views.registration import (AgreementActionAPIView, AgreementDetailAPIVi
 from api.views.users import (PermissionsAPIView, RoleDetailAPIView, RolesAPIView, UserActionAPIView,
     UserDetailAPIView, UsersAPIView)
 from api.views.catalog import (CategoriesAPIView, CategoryDetailAPIView, ProductActionAPIView,
-    ProductDetailAPIView, ProductMediaAPIView, ProductMediaDetailAPIView, ProductsAPIView)
+    ProductDetailAPIView, ProductMediaAPIView, ProductMediaDetailAPIView, ProductMediaPrimaryAPIView, ProductsAPIView)
 
 urlpatterns = [
     path("auth/signup/", SignupAPIView.as_view()), path("auth/signin/", SigninAPIView.as_view()),
@@ -22,6 +22,6 @@ urlpatterns = [
     path("catalog/products/", ProductsAPIView.as_view()), path("catalog/products/<int:pk>/", ProductDetailAPIView.as_view()),
     path("catalog/products/<int:pk>/media/", ProductMediaAPIView.as_view()),
     path("catalog/products/<int:pk>/media/<int:media_id>/", ProductMediaDetailAPIView.as_view()),
-    path("catalog/products/<int:pk>/media/<int:media_id>/primary/", ProductMediaDetailAPIView.as_view()),
+    path("catalog/products/<int:pk>/media/<int:media_id>/primary/", ProductMediaPrimaryAPIView.as_view()),
     path("catalog/products/<int:pk>/<str:action>/", ProductActionAPIView.as_view()),
 ]
