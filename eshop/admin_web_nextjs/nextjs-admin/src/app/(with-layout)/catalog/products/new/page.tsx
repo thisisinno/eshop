@@ -1,2 +1,5 @@
 import { ProductFormPage } from "@/components/admin/catalog-pages";
-export default function Page() { return <ProductFormPage />; }
+
+export default function Page() {
+  return <ProductFormPage mode="create" />;
+}

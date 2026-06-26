@@ -1,2 +1,10 @@
 import { ProductFormPage } from "@/components/admin/catalog-pages";
-export default async function Page({ params }: { params: Promise<{ id: string }> }) { return <ProductFormPage id={(await params).id} />; }
+
+type Props = {
+  params: Promise<{ id: string }>;
+};
+
+export default async function Page({ params }: Props) {
+  const { id } = await params;
+  return <ProductFormPage mode="edit" id={id} />;
+}
