@@ -145,12 +145,13 @@ class ProductMediaAPIView(PermissionedCatalogAPIView):
         product = get_object_or_404(Product, pk=pk)
         serializer = ProductMediaSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        filename = getattr(request.FILES.get("file"), "name", "media file")
         try:
             media = serializer.save(product=product, created_by=request.user)
         except serializers.ValidationError:
             raise
         except Exception as exc:
-            return Response({"detail": f"Media upload failed: {exc}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"file": [f"{filename}: upload failed. {exc}"]}, status=status.HTTP_400_BAD_REQUEST)
         return Response(ProductMediaSerializer(media, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -168,12 +169,13 @@ class ProductMediaDetailAPIView(PermissionedCatalogAPIView):
         media = self.get_object(pk, media_id)
         serializer = ProductMediaSerializer(media, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
+        filename = getattr(request.FILES.get("file"), "name", "media file")
         try:
             media = serializer.save()
         except serializers.ValidationError:
             raise
         except Exception as exc:
-            return Response({"detail": f"Media update failed: {exc}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"file": [f"{filename}: update failed. {exc}"]}, status=status.HTTP_400_BAD_REQUEST)
         return Response(ProductMediaSerializer(media, context={"request": request}).data)
 
 

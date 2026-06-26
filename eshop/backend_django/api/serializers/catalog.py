@@ -1,6 +1,31 @@
+import os
+from urllib.parse import urljoin
+
+from django.conf import settings
 from rest_framework import serializers
 
 from api.models import Product, ProductCategory, ProductMedia, TraderBranch
+
+
+def product_media_file_url(file, request=None):
+    if not file:
+        return None
+    try:
+        url = file.url
+    except Exception:
+        url = ""
+    if url.startswith(("http://", "https://")):
+        return url
+    if url.startswith("/") and request:
+        return request.build_absolute_uri(url)
+
+    path = url or getattr(file, "name", "")
+    if not path:
+        return None
+    media_url = getattr(settings, "MEDIA_URL", "/media/")
+    if media_url.startswith(("http://", "https://")):
+        return urljoin(media_url.rstrip("/") + "/", path.lstrip("/"))
+    return request.build_absolute_uri(path if path.startswith("/") else urljoin(media_url, path)) if request else urljoin(media_url, path)
 
 
 class ProductCategorySerializer(serializers.ModelSerializer):
@@ -12,6 +37,8 @@ class ProductCategorySerializer(serializers.ModelSerializer):
 
 class ProductMediaSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
+    file_key = serializers.SerializerMethodField()
+    storage_key = serializers.SerializerMethodField()
     file_name = serializers.SerializerMethodField()
     file_extension = serializers.SerializerMethodField()
     is_image = serializers.SerializerMethodField()
@@ -20,20 +47,44 @@ class ProductMediaSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductMedia
         fields = (
-            "id", "product", "media_type", "file", "file_url", "file_name", "file_extension", "is_image", "is_clip",
+            "id", "product", "media_type", "file", "file_url", "file_key", "storage_key", "file_name", "file_extension", "is_image", "is_clip",
             "title", "alt_text", "is_primary", "sort_order", "created_by", "created_at",
         )
-        read_only_fields = ("product", "created_by", "created_at")
+        read_only_fields = ("product", "file_key", "storage_key", "created_by", "created_at")
+
+    def validate(self, attrs):
+        file = attrs.get("file", getattr(self.instance, "file", None))
+        media_type = attrs.get("media_type", getattr(self.instance, "media_type", None))
+        if not file:
+            return attrs
+
+        filename = getattr(file, "name", "")
+        extension = os.path.splitext(filename)[1].lower()
+        if extension in ProductMedia.IMAGE_EXTENSIONS:
+            detected_media_type = ProductMedia.MediaType.IMAGE
+        elif extension in ProductMedia.CLIP_EXTENSIONS:
+            detected_media_type = ProductMedia.MediaType.CLIP
+        else:
+            allowed = sorted(ProductMedia.IMAGE_EXTENSIONS | ProductMedia.CLIP_EXTENSIONS)
+            raise serializers.ValidationError({
+                "file": f"{filename}: unsupported format. Allowed: {', '.join(allowed)}."
+            })
+
+        if media_type and media_type != detected_media_type:
+            raise serializers.ValidationError({
+                "media_type": f"{filename}: media_type must be {detected_media_type} for {extension} files."
+            })
+        attrs["media_type"] = detected_media_type
+        return attrs
 
     def get_file_url(self, obj):
-        if not obj.file:
-            return None
-        try:
-            url = obj.file.url
-        except Exception:
-            return None
-        request = self.context.get("request")
-        return request.build_absolute_uri(url) if request and url.startswith("/") else url
+        return product_media_file_url(obj.file, self.context.get("request"))
+
+    def get_file_key(self, obj):
+        return obj.file.name if obj.file else ""
+
+    def get_storage_key(self, obj):
+        return self.get_file_key(obj)
 
     def get_file_name(self, obj):
         return obj.file.name.rsplit("/", 1)[-1] if obj.file else ""
@@ -57,7 +108,7 @@ class ProductSummarySerializer(serializers.ModelSerializer):
 
     def get_primary_media_url(self, obj):
         media = obj.primary_media
-        return ProductMediaSerializer(media, context=self.context).data["file_url"] if media else None
+        return product_media_file_url(media.file, self.context.get("request")) if media else None
 
 
 class ProductListSerializer(serializers.ModelSerializer):
@@ -80,7 +131,7 @@ class ProductListSerializer(serializers.ModelSerializer):
 
     def get_primary_media_url(self, obj):
         media = obj.primary_media
-        return ProductMediaSerializer(media, context=self.context).data["file_url"] if media else None
+        return product_media_file_url(media.file, self.context.get("request")) if media else None
 
     def get_media_count(self, obj):
         return len(obj.media.all())

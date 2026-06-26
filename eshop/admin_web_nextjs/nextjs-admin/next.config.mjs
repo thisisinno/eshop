@@ -25,6 +25,16 @@ const nextConfig = {
         protocol: "https",
         hostname: "pub-b7fd9c30cdbf439183b75041f5f71b92.r2.dev",
         port: ""
+      },
+      {
+        protocol: "https",
+        hostname: "eshopmedia.s3.eu-west-1.amazonaws.com",
+        port: ""
+      },
+      {
+        protocol: "https",
+        hostname: "eshopmedia.s3.amazonaws.com",
+        port: ""
       }
     ]
   }
