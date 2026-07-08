@@ -11,7 +11,6 @@ export class ApiError extends Error {
     this.name = "ApiError";
   }
 }
-
 /** Turn DRF's field errors into text that can be shown directly in a toast. */
 export function formatApiError(data: unknown, status?: number, path?: string): string {
   const prefix = status ? `Backend error ${status}${path ? ` on ${path}` : ""}.` : "";
@@ -20,7 +19,7 @@ export function formatApiError(data: unknown, status?: number, path?: string): s
     if (/^<!doctype html>/i.test(text) || /<html[\s>]/i.test(text)) {
       return `${prefix || "Backend returned HTML error page."} Check Django logs.`;
     }
-    return prefix ? `${prefix} ${text}` : text;
+    return prefix ? `${prefix} ${text}` : text; 
   }
   if (!data || typeof data !== "object") return prefix || "The request failed.";
 

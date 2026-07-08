@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 
 from api.permissions import HasModulePermission
 from api.serializers import AdminUserSerializer, PermissionSerializer, RoleSerializer
+from api.views.logs import record_admin_activity
 
 
 class ManagedAPIView(APIView):
@@ -23,7 +24,7 @@ class UsersAPIView(ManagedAPIView):
         return Response(AdminUserSerializer(users, many=True).data)
     def post(self, request):
         self.permission_required = "auth.add_user"; serializer = AdminUserSerializer(data=request.data); serializer.is_valid(raise_exception=True)
-        return Response(AdminUserSerializer(serializer.save()).data, status=status.HTTP_201_CREATED)
+        user = serializer.save(); record_admin_activity(request, "users", "create", user, status.HTTP_201_CREATED); return Response(AdminUserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
 class UserDetailAPIView(ManagedAPIView):
@@ -32,20 +33,20 @@ class UserDetailAPIView(ManagedAPIView):
     def put(self, request, pk): return self.update(request, pk)
     def patch(self, request, pk): return self.update(request, pk, True)
     def update(self, request, pk, partial=False):
-        self.permission_required = "auth.change_user"; serializer = AdminUserSerializer(self.object(pk), data=request.data, partial=partial); serializer.is_valid(raise_exception=True); return Response(AdminUserSerializer(serializer.save()).data)
-    def delete(self, request, pk): self.permission_required = "auth.delete_user"; self.object(pk).delete(); return Response(status=status.HTTP_204_NO_CONTENT)
+        self.permission_required = "auth.change_user"; serializer = AdminUserSerializer(self.object(pk), data=request.data, partial=partial); serializer.is_valid(raise_exception=True); user = serializer.save(); record_admin_activity(request, "users", "update", user, status.HTTP_200_OK); return Response(AdminUserSerializer(user).data)
+    def delete(self, request, pk): self.permission_required = "auth.delete_user"; user = self.object(pk); record_admin_activity(request, "users", "delete", user, status.HTTP_204_NO_CONTENT); user.delete(); return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class UserActionAPIView(ManagedAPIView):
     def patch(self, request, pk, action):
         user = get_object_or_404(User, pk=pk)
-        if action == "activate": self.permission_required = "auth.change_user"; user.is_active = True; user.save(update_fields=["is_active"]); return Response(AdminUserSerializer(user).data)
-        if action == "deactivate": self.permission_required = "auth.change_user"; user.is_active = False; user.save(update_fields=["is_active"]); return Response(AdminUserSerializer(user).data)
+        if action == "activate": self.permission_required = "auth.change_user"; user.is_active = True; user.save(update_fields=["is_active"]); record_admin_activity(request, "users", "activate", user, status.HTTP_200_OK); return Response(AdminUserSerializer(user).data)
+        if action == "deactivate": self.permission_required = "auth.change_user"; user.is_active = False; user.save(update_fields=["is_active"]); record_admin_activity(request, "users", "deactivate", user, status.HTTP_200_OK); return Response(AdminUserSerializer(user).data)
         if action == "set_password":
             self.permission_required = "auth.change_user"; password = request.data.get("password")
             if not password: return Response({"password": ["This field is required."]}, status=400)
-            user.set_password(password); user.save(update_fields=["password"]); return Response({"detail": "Password updated."})
-        if action == "assign_roles": self.permission_required = "auth.change_user"; user.groups.set(request.data.get("groups", [])); return Response(AdminUserSerializer(user).data)
+            user.set_password(password); user.save(update_fields=["password"]); record_admin_activity(request, "users", "set_password", user, status.HTTP_200_OK); return Response({"detail": "Password updated."})
+        if action == "assign_roles": self.permission_required = "auth.change_user"; user.groups.set(request.data.get("groups", [])); record_admin_activity(request, "users", "assign_roles", user, status.HTTP_200_OK); return Response(AdminUserSerializer(user).data)
         return Response({"detail": "Unknown action."}, status=404)
 
 

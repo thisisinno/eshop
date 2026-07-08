@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from api.models import Product, ProductCategory, ProductMedia
 from api.permissions import HasModulePermission
 from api.serializers import ProductCategorySerializer, ProductDetailSerializer, ProductListSerializer, ProductMediaSerializer, ProductWriteSerializer
+from api.views.logs import record_admin_activity
 
 
 class PermissionedCatalogAPIView(APIView):
@@ -32,7 +33,9 @@ class CategoriesAPIView(PermissionedCatalogAPIView):
     def post(self, request):
         serializer = ProductCategorySerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        return Response(ProductCategorySerializer(serializer.save(), context={"request": request}).data, status=status.HTTP_201_CREATED)
+        category = serializer.save()
+        record_admin_activity(request, "catalog", "create", category, status.HTTP_201_CREATED)
+        return Response(ProductCategorySerializer(category, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
 class CategoryDetailAPIView(PermissionedCatalogAPIView):
@@ -53,10 +56,14 @@ class CategoryDetailAPIView(PermissionedCatalogAPIView):
     def update(self, request, pk, partial=False):
         serializer = ProductCategorySerializer(self.get_object(pk), data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        return Response(ProductCategorySerializer(serializer.save(), context={"request": request}).data)
+        category = serializer.save()
+        record_admin_activity(request, "catalog", "update", category, status.HTTP_200_OK)
+        return Response(ProductCategorySerializer(category, context={"request": request}).data)
 
     def delete(self, request, pk):
-        self.get_object(pk).delete()
+        category = self.get_object(pk)
+        record_admin_activity(request, "catalog", "delete", category, status.HTTP_204_NO_CONTENT)
+        category.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -87,6 +94,7 @@ class ProductsAPIView(PermissionedCatalogAPIView):
         serializer = ProductWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         product = serializer.save(created_by=request.user, updated_by=request.user)
+        record_admin_activity(request, "catalog", "create", product, status.HTTP_201_CREATED)
         return Response(ProductDetailSerializer(product_queryset().get(pk=product.pk), context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -109,10 +117,13 @@ class ProductDetailAPIView(PermissionedCatalogAPIView):
         serializer = ProductWriteSerializer(self.get_object(pk), data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         product = serializer.save(updated_by=request.user)
+        record_admin_activity(request, "catalog", "update", product, status.HTTP_200_OK)
         return Response(ProductDetailSerializer(product_queryset().get(pk=product.pk), context={"request": request}).data)
 
     def delete(self, request, pk):
-        self.get_object(pk).delete()
+        product = self.get_object(pk)
+        record_admin_activity(request, "catalog", "delete", product, status.HTTP_204_NO_CONTENT)
+        product.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -135,6 +146,7 @@ class ProductActionAPIView(PermissionedCatalogAPIView):
             product.status = Product.Status.ARCHIVED
         product.updated_by = request.user
         product.save()
+        record_admin_activity(request, "catalog", action, product, status.HTTP_200_OK)
         return Response(ProductDetailSerializer(product_queryset().get(pk=product.pk), context={"request": request}).data)
 
 
@@ -152,6 +164,7 @@ class ProductMediaAPIView(PermissionedCatalogAPIView):
             raise
         except Exception as exc:
             return Response({"file": [f"{filename}: upload failed. {exc}"]}, status=status.HTTP_400_BAD_REQUEST)
+        record_admin_activity(request, "catalog", "media_upload", media, status.HTTP_201_CREATED)
         return Response(ProductMediaSerializer(media, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -162,7 +175,9 @@ class ProductMediaDetailAPIView(PermissionedCatalogAPIView):
         return get_object_or_404(ProductMedia, product_id=pk, pk=media_id)
 
     def delete(self, request, pk, media_id):
-        self.get_object(pk, media_id).delete()
+        media = self.get_object(pk, media_id)
+        record_admin_activity(request, "catalog", "media_delete", media, status.HTTP_204_NO_CONTENT)
+        media.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def patch(self, request, pk, media_id):
@@ -176,6 +191,7 @@ class ProductMediaDetailAPIView(PermissionedCatalogAPIView):
             raise
         except Exception as exc:
             return Response({"file": [f"{filename}: update failed. {exc}"]}, status=status.HTTP_400_BAD_REQUEST)
+        record_admin_activity(request, "catalog", "media_update", media, status.HTTP_200_OK)
         return Response(ProductMediaSerializer(media, context={"request": request}).data)
 
 
@@ -186,4 +202,5 @@ class ProductMediaPrimaryAPIView(PermissionedCatalogAPIView):
         media = get_object_or_404(ProductMedia, product_id=pk, pk=media_id)
         media.is_primary = True
         media.save()
+        record_admin_activity(request, "catalog", "media_primary", media, status.HTTP_200_OK)
         return Response(ProductMediaSerializer(media, context={"request": request}).data)

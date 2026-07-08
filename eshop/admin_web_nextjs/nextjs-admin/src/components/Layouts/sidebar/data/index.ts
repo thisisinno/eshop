@@ -44,8 +44,31 @@ export const NAV_DATA = [
         icon: Icons.Table,
         items: [
           { title: "Products", url: "/catalog/products" },
-          { title: "Add Product", url: "/catalog/products/new" },
           { title: "Categories", url: "/catalog/categories" },
+        ],
+      },
+    ],
+  },
+  {
+    label: "ORDERS",
+    items: [
+      {
+        title: "Orders",
+        icon: Icons.Calendar,
+        items: [{ title: "All Orders", url: "/orders" }],
+      },
+    ],
+  },
+  {
+    label: "LOGS",
+    items: [
+      {
+        title: "Logs",
+        icon: Icons.Table,
+        items: [
+          { title: "User Activity", url: "/logs/user-activity" },
+          { title: "Admin Activity", url: "/logs/admin-activity" },
+          { title: "System Logs", url: "/logs/system" },
         ],
       },
     ],

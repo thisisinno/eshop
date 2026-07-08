@@ -8,6 +8,8 @@ from api.views.users import (PermissionsAPIView, RoleDetailAPIView, RolesAPIView
     UserDetailAPIView, UsersAPIView)
 from api.views.catalog import (CategoriesAPIView, CategoryDetailAPIView, ProductActionAPIView,
     ProductDetailAPIView, ProductMediaAPIView, ProductMediaDetailAPIView, ProductMediaPrimaryAPIView, ProductsAPIView)
+from api.views.logs import AdminActivityLogsAPIView, ProductInteractionAPIView, SystemRequestLogsAPIView, UserActivityLogsAPIView
+from api.views.orders import OrderActionAPIView, OrderDetailAPIView, OrdersAPIView
 
 urlpatterns = [
     path("auth/signup/", SignupAPIView.as_view()), path("auth/signin/", SigninAPIView.as_view()),
@@ -24,4 +26,7 @@ urlpatterns = [
     path("catalog/products/<int:pk>/media/<int:media_id>/", ProductMediaDetailAPIView.as_view()),
     path("catalog/products/<int:pk>/media/<int:media_id>/primary/", ProductMediaPrimaryAPIView.as_view()),
     path("catalog/products/<int:pk>/<str:action>/", ProductActionAPIView.as_view()),
+    path("orders/", OrdersAPIView.as_view()), path("orders/<int:pk>/", OrderDetailAPIView.as_view()), path("orders/<int:pk>/<str:action>/", OrderActionAPIView.as_view()),
+    path("logs/user-activity/", UserActivityLogsAPIView.as_view()), path("logs/admin-activity/", AdminActivityLogsAPIView.as_view()), path("logs/system/", SystemRequestLogsAPIView.as_view()),
+    path("track/product-interaction/", ProductInteractionAPIView.as_view()),
 ]
