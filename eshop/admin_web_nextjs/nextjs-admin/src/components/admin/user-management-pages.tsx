@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react/jsx-key -- DataTable supplies stable table-cell keys for render arrays. */
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";

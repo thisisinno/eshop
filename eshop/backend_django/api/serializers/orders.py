@@ -1,7 +1,7 @@
-from django.db import transaction
 from rest_framework import serializers
 
 from api.models import Order, OrderItem, OrderStatusHistory, Product
+from api.services.orders import create_order, update_order
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -20,6 +20,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 class OrderItemWriteSerializer(serializers.ModelSerializer):
     product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), required=False, allow_null=True)
+    id = serializers.IntegerField(required=False)
 
     class Meta:
         model = OrderItem
@@ -67,7 +68,7 @@ class OrderListSerializer(serializers.ModelSerializer):
         fields = (
             "id", "order_number", "customer_full_name", "customer_phone", "customer_email",
             "status", "payment_status", "source", "total_amount", "currency", "items_count",
-            "created_at", "updated_at",
+            "total_quantity", "created_at", "updated_at",
         )
 
 
@@ -94,6 +95,7 @@ class OrderDetailSerializer(serializers.ModelSerializer):
 
 class OrderWriteSerializer(serializers.ModelSerializer):
     items = OrderItemWriteSerializer(many=True, required=False)
+    allow_price_override = serializers.BooleanField(required=False, write_only=True, default=False)
 
     class Meta:
         model = Order
@@ -102,28 +104,17 @@ class OrderWriteSerializer(serializers.ModelSerializer):
             "customer_country", "customer_region", "customer_district", "customer_ward", "customer_street",
             "customer_address", "delivery_note", "admin_note", "source", "status", "payment_status",
             "currency", "delivery_fee", "requested_ip_address", "requested_user_agent",
-            "requested_device", "requested_browser", "requested_os", "items",
+            "requested_device", "requested_browser", "requested_os", "allow_price_override", "items",
         )
 
-    @transaction.atomic
     def create(self, validated_data):
         items = validated_data.pop("items", [])
-        order = Order.objects.create(**validated_data)
-        for item in items:
-            OrderItem.objects.create(order=order, **item)
-        if not items:
-            order.recalculate_totals()
-        return order
+        user = self.context.get("user")
+        request = self.context.get("request")
+        return create_order(validated_data, items, user=user, request=request)
 
-    @transaction.atomic
     def update(self, instance, validated_data):
         items = validated_data.pop("items", None)
-        for key, value in validated_data.items():
-            setattr(instance, key, value)
-        instance.save()
-        if items is not None:
-            instance.items.all().delete()
-            for item in items:
-                OrderItem.objects.create(order=instance, **item)
-            instance.recalculate_totals()
-        return instance
+        user = self.context.get("user")
+        request = self.context.get("request")
+        return update_order(instance, validated_data, items=items, user=user, request=request)

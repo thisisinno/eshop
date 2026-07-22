@@ -5,7 +5,7 @@ export type OrderSource = "admin" | "web_pwa" | "mobile_pwa" | "api";
 export interface OrderListItem {
   id: number; order_number: string; customer_full_name: string; customer_phone: string; customer_email: string;
   status: OrderStatus; payment_status: PaymentStatus; source: OrderSource; total_amount: string; currency: string;
-  items_count: number; created_at: string; updated_at: string;
+  items_count: number; total_quantity: number; created_at: string; updated_at: string;
 }
 
 export interface OrderItem {
@@ -33,7 +33,7 @@ export interface Order extends OrderListItem {
 }
 
 export interface OrderItemPayload {
-  product?: number | null; product_name_snapshot?: string; quantity: number; unit_price: string | number;
+  id?: number; product?: number | null; product_name_snapshot?: string; quantity: number; unit_price: string | number;
   line_discount?: string | number; note?: string;
 }
 

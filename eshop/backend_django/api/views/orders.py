@@ -1,6 +1,5 @@
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
@@ -9,8 +8,8 @@ from rest_framework.views import APIView
 from api.models import Order
 from api.permissions import HasModulePermission
 from api.serializers import OrderDetailSerializer, OrderListSerializer, OrderWriteSerializer
+from api.services.orders import ACTION_STATUS, transition_order
 from api.utils.request_meta import request_meta_snapshot
-from api.views.logs import record_admin_activity
 
 
 def order_queryset():
@@ -51,7 +50,14 @@ class OrdersAPIView(PermissionedOrdersAPIView):
             queryset = queryset.filter(items__product_id=product)
         if trader := request.query_params.get("trader"):
             queryset = queryset.filter(items__trader_id=trader)
-        return Response(OrderListSerializer(queryset.distinct(), many=True, context={"request": request}).data)
+        if phone := request.query_params.get("customer_phone"):
+            queryset = queryset.filter(customer_phone__icontains=phone)
+        if email := request.query_params.get("customer_email"):
+            queryset = queryset.filter(customer_email__icontains=email)
+        if product or trader or search:
+            queryset = queryset.distinct()
+        queryset = queryset.order_by("-created_at", "-id")
+        return Response(OrderListSerializer(queryset, many=True, context={"request": request}).data)
 
     def post(self, request):
         data = request.data.copy()
@@ -61,10 +67,9 @@ class OrdersAPIView(PermissionedOrdersAPIView):
         data.setdefault("requested_device", meta["device_type"])
         data.setdefault("requested_browser", meta["browser"])
         data.setdefault("requested_os", meta["os"])
-        serializer = OrderWriteSerializer(data=data)
+        serializer = OrderWriteSerializer(data=data, context={"request": request, "user": request.user})
         serializer.is_valid(raise_exception=True)
-        order = serializer.save(created_by=request.user, updated_by=request.user)
-        record_admin_activity(request, "orders", "create", order, status.HTTP_201_CREATED)
+        order = serializer.save()
         return Response(OrderDetailSerializer(order_queryset().get(pk=order.pk), context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -84,15 +89,15 @@ class OrderDetailAPIView(PermissionedOrdersAPIView):
         return self.update(request, pk, partial=True)
 
     def update(self, request, pk, partial=False):
-        serializer = OrderWriteSerializer(self.get_object(pk), data=request.data, partial=partial)
+        serializer = OrderWriteSerializer(self.get_object(pk), data=request.data, partial=partial, context={"request": request, "user": request.user})
         serializer.is_valid(raise_exception=True)
-        order = serializer.save(updated_by=request.user)
-        record_admin_activity(request, "orders", "update", order, status.HTTP_200_OK)
+        order = serializer.save()
         return Response(OrderDetailSerializer(order_queryset().get(pk=order.pk), context={"request": request}).data)
 
     def delete(self, request, pk):
         order = self.get_object(pk)
-        record_admin_activity(request, "orders", "delete", order, status.HTTP_204_NO_CONTENT)
+        from api.services.orders import record_order_activity
+        record_order_activity(request, "delete", order, status.HTTP_204_NO_CONTENT)
         order.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -107,16 +112,6 @@ class OrderActionAPIView(PermissionedOrdersAPIView):
         "cancel": "api.cancel_order",
         "reject": "api.cancel_order",
     }
-    action_statuses = {
-        "confirm": Order.Status.CONFIRMED,
-        "process": Order.Status.PROCESSING,
-        "ready": Order.Status.READY,
-        "ship": Order.Status.SHIPPED,
-        "deliver": Order.Status.DELIVERED,
-        "cancel": Order.Status.CANCELLED,
-        "reject": Order.Status.REJECTED,
-    }
-
     def initial(self, request, *args, **kwargs):
         self.permission_required = self.action_permissions.get(kwargs.get("action"), "")
         APIView.initial(self, request, *args, **kwargs)
@@ -125,18 +120,5 @@ class OrderActionAPIView(PermissionedOrdersAPIView):
         if action not in self.action_permissions:
             return Response({"detail": "Unknown action."}, status=status.HTTP_404_NOT_FOUND)
         order = get_object_or_404(order_queryset(), pk=pk)
-        now = timezone.now()
-        order.status = self.action_statuses[action]
-        order.updated_by = request.user
-        order._status_changed_by = request.user
-        order._status_change_note = request.data.get("note", "")
-        if action == "confirm":
-            order.confirmed_by = request.user
-            order.confirmed_at = now
-        elif action == "deliver":
-            order.delivered_at = now
-        elif action in ("cancel", "reject"):
-            order.cancelled_at = now
-        order.save()
-        record_admin_activity(request, "orders", action, order, status.HTTP_200_OK)
+        order = transition_order(order, ACTION_STATUS[action], user=request.user, note=request.data.get("note", ""), request=request, action=action)
         return Response(OrderDetailSerializer(order_queryset().get(pk=order.pk), context={"request": request}).data)

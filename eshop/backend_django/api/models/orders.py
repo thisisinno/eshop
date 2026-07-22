@@ -2,10 +2,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models, transaction
-from django.db.models.signals import post_delete, post_save
-from django.dispatch import receiver
-from django.utils import timezone
+from django.db import models
 
 from .catalog import Product
 from .registration import TraderBranch, TraderProfile
@@ -58,6 +55,7 @@ class Order(models.Model):
     delivery_fee = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     items_count = models.PositiveIntegerField(default=0)
+    total_quantity = models.PositiveIntegerField(default=0)
     requested_ip_address = models.GenericIPAddressField(null=True, blank=True)
     requested_user_agent = models.TextField(blank=True)
     requested_device = models.CharField(max_length=100, blank=True)
@@ -89,26 +87,9 @@ class Order(models.Model):
         ]
 
     def save(self, *args, **kwargs):
-        old_status = None
-        if self.pk:
-            old_status = Order.objects.filter(pk=self.pk).values_list("status", flat=True).first()
         if self.customer_user and not self.customer_username:
             self.customer_username = self.customer_user.get_username()
-        with transaction.atomic():
-            if not self.order_number:
-                year = timezone.now().year
-                last = Order.objects.select_for_update().filter(order_number__startswith=f"ORD-{year}-").order_by("-order_number").first()
-                sequence = int(last.order_number.rsplit("-", 1)[1]) + 1 if last else 1
-                self.order_number = f"ORD-{year}-{sequence:06d}"
-            super().save(*args, **kwargs)
-            if old_status is not None and old_status != self.status:
-                OrderStatusHistory.objects.create(
-                    order=self,
-                    from_status=old_status,
-                    to_status=self.status,
-                    note=getattr(self, "_status_change_note", ""),
-                    changed_by=getattr(self, "_status_changed_by", None),
-                )
+        super().save(*args, **kwargs)
 
     def recalculate_totals(self):
         items = list(self.items.all())
@@ -118,8 +99,9 @@ class Order(models.Model):
         self.subtotal_amount = subtotal
         self.discount_amount = discount
         self.total_amount = max(total, Decimal("0.00"))
-        self.items_count = sum(item.quantity for item in items)
-        self.save(update_fields=["subtotal_amount", "discount_amount", "total_amount", "items_count", "updated_at"])
+        self.items_count = len(items)
+        self.total_quantity = sum(item.quantity for item in items)
+        self.save(update_fields=["subtotal_amount", "discount_amount", "total_amount", "items_count", "total_quantity", "updated_at"])
 
     def __str__(self):
         return self.order_number
@@ -200,11 +182,13 @@ class OrderStatusHistory(models.Model):
         return f"{self.order} {self.from_status} -> {self.to_status}"
 
 
-@receiver(post_save, sender=OrderItem)
-def recalculate_order_after_item_save(sender, instance, **kwargs):
-    instance.order.recalculate_totals()
+class OrderNumberSequence(models.Model):
+    year = models.PositiveIntegerField(unique=True)
+    last_number = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        ordering = ("-year",)
 
-@receiver(post_delete, sender=OrderItem)
-def recalculate_order_after_item_delete(sender, instance, **kwargs):
-    instance.order.recalculate_totals()
+    def __str__(self):
+        return f"{self.year}: {self.last_number}"

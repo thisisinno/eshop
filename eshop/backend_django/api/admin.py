@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from .models import (
-    AdminActivityLog, Order, OrderItem, OrderStatusHistory, Product, ProductCategory,
+    AdminActivityLog, Order, OrderItem, OrderNumberSequence, OrderStatusHistory, Product, ProductCategory,
     ProductMedia, SystemRequestLog, TraderAgreement, TraderBranch, TraderDocument,
     TraderProfile, UserActivityLog,
 )
@@ -67,11 +67,17 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ("order_number", "customer_full_name", "customer_phone", "status", "payment_status", "total_amount", "items_count", "created_at")
+    list_display = ("order_number", "customer_full_name", "customer_phone", "status", "payment_status", "total_amount", "items_count", "total_quantity", "created_at")
     list_filter = ("status", "payment_status", "source", "created_at")
     search_fields = ("order_number", "customer_full_name", "customer_phone", "customer_email", "items__product_name_snapshot")
-    readonly_fields = ("order_number", "subtotal_amount", "discount_amount", "total_amount", "items_count", "created_at", "updated_at")
+    readonly_fields = ("order_number", "subtotal_amount", "discount_amount", "total_amount", "items_count", "total_quantity", "created_at", "updated_at")
     inlines = [OrderItemInline]
+
+
+@admin.register(OrderNumberSequence)
+class OrderNumberSequenceAdmin(admin.ModelAdmin):
+    list_display = ("year", "last_number", "updated_at")
+    readonly_fields = ("updated_at",)
 
 
 @admin.register(OrderStatusHistory)

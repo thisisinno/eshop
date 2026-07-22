@@ -1,9 +1,13 @@
+import logging
 import time
 
 from django.conf import settings
+from django.db import connection
 
 from api.models import SystemRequestLog
 from api.utils.request_meta import request_meta_snapshot
+
+logger = logging.getLogger(__name__)
 
 
 class SystemRequestLogMiddleware:
@@ -31,6 +35,8 @@ class SystemRequestLogMiddleware:
         if any(path.startswith(prefix) for prefix in excluded):
             return
         try:
+            if SystemRequestLog._meta.db_table not in connection.introspection.table_names():
+                return
             user = getattr(request, "user", None)
             if not getattr(user, "is_authenticated", False):
                 user = None
@@ -59,4 +65,4 @@ class SystemRequestLogMiddleware:
                 metadata={},
             )
         except Exception:
-            pass
+            logger.warning("Could not record system request log", exc_info=True)

@@ -1,3 +1,5 @@
+import logging
+
 from django.db.models import Q
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -8,6 +10,8 @@ from api.models import AdminActivityLog, SystemRequestLog, UserActivityLog
 from api.permissions import HasModulePermission
 from api.serializers import AdminActivityLogSerializer, SystemRequestLogSerializer, UserActivityLogSerializer
 from api.utils.request_meta import request_meta_snapshot
+
+logger = logging.getLogger(__name__)
 
 
 def record_admin_activity(request, module, action, obj=None, status_code=None, metadata=None):
@@ -34,7 +38,7 @@ def record_admin_activity(request, module, action, obj=None, status_code=None, m
             metadata=metadata or {},
         )
     except Exception:
-        pass
+        logger.warning("Could not record admin activity", exc_info=True)
 
 
 class LogsListAPIView(APIView):
@@ -126,3 +130,4 @@ class ProductInteractionAPIView(APIView):
             os=meta["os"],
         )
         return Response(UserActivityLogSerializer(log, context={"request": request}).data, status=status.HTTP_201_CREATED)
+import logging
