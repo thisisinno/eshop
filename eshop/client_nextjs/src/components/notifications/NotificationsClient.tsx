@@ -4,14 +4,16 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Bell, Check, Package, ShoppingBag, X } from "lucide-react";
+import { Bell, Bookmark, Check, Package, ShoppingBag, X } from "lucide-react";
 import type { StorefrontNotification } from "@/types/storefront";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
+import { useNotifications } from "./NotificationProvider";
 
 const label = (value: string) => value.replaceAll("_", " ");
 
 export function NotificationsClient({ initial, tab }: { initial: StorefrontNotification[]; tab: "pending" | "completed" }) {
   const router = useRouter();
+  const { decrementUnread, refreshUnreadCount } = useNotifications();
   const [items, setItems] = useState(initial);
   const [selected, setSelected] = useState<StorefrontNotification | null>(null);
 
@@ -23,6 +25,8 @@ export function NotificationsClient({ initial, tab }: { initial: StorefrontNotif
         const updated = await response.json() as StorefrontNotification;
         setSelected(updated);
         setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
+        decrementUnread();
+        void refreshUnreadCount();
         router.refresh();
       }
     }
@@ -41,20 +45,21 @@ export function NotificationsClient({ initial, tab }: { initial: StorefrontNotif
 
 function NotificationRow({ notification, onOpen }: { notification: StorefrontNotification; onOpen: () => void }) {
   const image = resolveMediaUrl(notification.product?.primary_media_url || notification.store?.logo_url || "");
-  const Icon = notification.notification_type === "order" ? Package : notification.notification_type === "cart" ? ShoppingBag : notification.is_read ? Check : Bell;
+  const Icon = notification.notification_type === "order" ? Package : notification.notification_type === "cart" ? ShoppingBag : notification.notification_type === "my_list" ? Bookmark : notification.is_read ? Check : Bell;
+  const status = notification.lifecycle_state === "pending" ? "In progress" : "Completed";
+  const time = new Date(notification.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   return (
-    <button type="button" onClick={onOpen} className="grid w-full grid-cols-[44px_1fr_auto] gap-3 bg-white px-4 py-3 text-left transition hover:bg-[var(--color-primary-soft)] active:scale-[0.99]">
-      <span className="relative grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-[var(--color-primary-soft)]">
-        {image ? <Image src={image} alt="" fill sizes="44px" className="object-cover" /> : <Icon aria-hidden className="h-5 w-5" />}
+    <button type="button" onClick={onOpen} className="grid w-full grid-cols-[42px_minmax(0,1fr)_12px] gap-3 bg-white px-4 py-3 text-left transition hover:bg-[var(--color-primary-soft)] active:scale-[0.99]">
+      <span className="relative grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-[var(--color-primary-soft)]">
+        {image ? <Image src={image} alt="" fill sizes="40px" className="object-cover" /> : <Icon aria-hidden className="h-5 w-5" />}
       </span>
       <span className="min-w-0">
         <span className="block truncate text-sm font-black">{notification.title}</span>
         <span className="line-clamp-2 text-sm text-[var(--color-text-secondary)]">{notification.message}</span>
-        <span className="mt-1 block text-xs text-[var(--color-text-secondary)]">{new Date(notification.created_at).toLocaleString()}</span>
+        <span className="mt-1 block truncate text-xs font-semibold text-[var(--color-text-secondary)]">{status} · {time}</span>
       </span>
-      <span className="flex flex-col items-end gap-2 text-xs font-semibold text-[var(--color-text-secondary)]">
-        {!notification.is_read ? <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-black)]" aria-label="Unread" /> : <span>Seen</span>}
-        <span>{notification.lifecycle_state === "pending" ? "In progress" : "Completed"}</span>
+      <span className="flex items-start justify-end pt-1">
+        {!notification.is_read ? <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-black)]" aria-label="Unread" /> : null}
       </span>
     </button>
   );

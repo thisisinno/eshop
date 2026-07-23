@@ -1,11 +1,25 @@
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from api.models import Order, UserActivityLog, UserNotification
 
 
 FINAL_ORDER_STATUSES = {Order.Status.DELIVERED, Order.Status.CANCELLED, Order.Status.REJECTED}
+CUSTOMER_VISIBLE_TYPES = {
+    UserNotification.NotificationType.MY_LIST,
+    UserNotification.NotificationType.CART,
+    UserNotification.NotificationType.ORDER,
+    UserNotification.NotificationType.SYSTEM,
+}
+ACTIVITY_NOTIFICATION_ACTIONS = {
+    UserActivityLog.Action.BOOKMARK,
+    UserActivityLog.Action.UNBOOKMARK,
+    UserActivityLog.Action.ADD_TO_CART,
+    UserActivityLog.Action.REMOVE_FROM_CART,
+    UserActivityLog.Action.CART_QUANTITY_CHANGE,
+}
 PASSIVE_ACTIONS = {
     UserActivityLog.Action.PRODUCT_VIEW,
     UserActivityLog.Action.PRODUCT_OPEN,
@@ -26,12 +40,6 @@ ACTION_COPY = {
     UserActivityLog.Action.ADD_TO_CART: ("cart", "Added to cart", "Added {product} to your cart."),
     UserActivityLog.Action.REMOVE_FROM_CART: ("cart", "Removed from cart", "Removed {product} from your cart."),
     UserActivityLog.Action.CART_QUANTITY_CHANGE: ("cart", "Cart updated", "Updated {product} quantity."),
-    UserActivityLog.Action.STORE_FOLLOW: ("store", "Store followed", "Followed {store}."),
-    UserActivityLog.Action.STORE_UNFOLLOW: ("store", "Store unfollowed", "Unfollowed {store}."),
-    UserActivityLog.Action.LIKE: ("like", "Liked product", "Liked {product}."),
-    UserActivityLog.Action.UNLIKE: ("like", "Removed like", "Removed like from {product}."),
-    UserActivityLog.Action.RATING: ("review", "Rating submitted", "Rated {product}."),
-    UserActivityLog.Action.REVIEW: ("review", "Review submitted", "Reviewed {product}."),
 }
 
 ORDER_STATUS_TITLES = {
@@ -46,6 +54,46 @@ ORDER_STATUS_TITLES = {
 }
 
 
+def customer_visible_notifications(user):
+    return UserNotification.objects.filter(
+        recipient=user,
+        notification_type__in=CUSTOMER_VISIBLE_TYPES,
+    ).filter(Q(metadata__admin=False) | Q(metadata__admin__isnull=True))
+
+
+def admin_visible_notifications(user):
+    if not (user and user.is_authenticated and (user.is_staff or user.is_superuser)):
+        return UserNotification.objects.none()
+    return UserNotification.objects.filter(recipient=user, metadata__admin=True)
+
+
+def visible_notifications_for(user, audience="customer"):
+    if audience == "admin":
+        return admin_visible_notifications(user)
+    return customer_visible_notifications(user)
+
+
+def _upsert_order_notification(recipient, order, defaults, admin=False):
+    queryset = UserNotification.objects.filter(
+        recipient=recipient,
+        order=order,
+        notification_type=UserNotification.NotificationType.ORDER,
+    )
+    queryset = queryset.filter(metadata__admin=True) if admin else queryset.filter(Q(metadata__admin=False) | Q(metadata__admin__isnull=True))
+    notification = queryset.order_by("-created_at").first()
+    if notification:
+        for field, value in defaults.items():
+            setattr(notification, field, value)
+        notification.save(update_fields=[*defaults.keys(), "updated_at"])
+        return notification
+    return UserNotification.objects.create(
+        recipient=recipient,
+        order=order,
+        notification_type=UserNotification.NotificationType.ORDER,
+        **defaults,
+    )
+
+
 @transaction.atomic
 def sync_order_notification(order):
     if not order.customer_user_id:
@@ -53,11 +101,10 @@ def sync_order_notification(order):
     now = timezone.now()
     lifecycle_state = UserNotification.LifecycleState.COMPLETED if order.status in FINAL_ORDER_STATUSES else UserNotification.LifecycleState.PENDING
     title = ORDER_STATUS_TITLES.get(order.status, "Order updated")
-    notification, _ = UserNotification.objects.update_or_create(
-        recipient=order.customer_user,
-        order=order,
-        notification_type=UserNotification.NotificationType.ORDER,
-        defaults={
+    notification = _upsert_order_notification(
+        order.customer_user,
+        order,
+        {
             "title": f"{title}: {order.order_number}",
             "message": f"{order.order_number} is {order.status.replace('_', ' ')}.",
             "lifecycle_state": lifecycle_state,
@@ -65,9 +112,10 @@ def sync_order_notification(order):
             "read_at": None,
             "product": None,
             "trader": None,
-            "metadata": {"status": order.status, "payment_status": order.payment_status},
+            "metadata": {"audience": "customer", "admin": False, "status": order.status, "payment_status": order.payment_status},
             "completed_at": now if lifecycle_state == UserNotification.LifecycleState.COMPLETED else None,
         },
+        admin=False,
     )
     return notification
 
@@ -75,11 +123,10 @@ def sync_order_notification(order):
 def notify_admin_of_new_order(order):
     recipients = get_user_model().objects.filter(is_active=True).filter(is_superuser=True)
     for recipient in recipients:
-        UserNotification.objects.update_or_create(
-            recipient=recipient,
-            order=order,
-            notification_type=UserNotification.NotificationType.ORDER,
-            defaults={
+        _upsert_order_notification(
+            recipient,
+            order,
+            {
                 "title": f"New order {order.order_number}",
                 "message": f"{order.customer_full_name} placed an order.",
                 "lifecycle_state": UserNotification.LifecycleState.PENDING,
@@ -87,11 +134,12 @@ def notify_admin_of_new_order(order):
                 "read_at": None,
                 "metadata": {"admin": True, "status": order.status, "payment_status": order.payment_status},
             },
+            admin=True,
         )
 
 
 def create_activity_notification(log):
-    if not log.user_id or log.action in PASSIVE_ACTIONS:
+    if not log.user_id or log.action in PASSIVE_ACTIONS or log.action not in ACTIVITY_NOTIFICATION_ACTIONS:
         return None
     template = ACTION_COPY.get(log.action)
     if not template:
@@ -99,18 +147,20 @@ def create_activity_notification(log):
     notification_type, title, message = template
     product_name = log.product.name if log.product_id else "product"
     store_name = log.trader.business_name if log.trader_id else "store"
+    now = timezone.now()
     return UserNotification.objects.create(
         recipient=log.user,
         notification_type=notification_type,
         title=title,
         message=message.format(product=product_name, store=store_name),
         lifecycle_state=UserNotification.LifecycleState.COMPLETED,
-        is_read=False,
+        is_read=True,
+        read_at=now,
         product=log.product,
         trader=log.trader,
         activity_log=log,
         metadata={"action": log.action, **(log.metadata or {})},
-        completed_at=timezone.now(),
+        completed_at=now,
     )
 
 
@@ -121,5 +171,5 @@ def mark_notification_read(notification):
 
 def mark_all_read(user, queryset=None):
     now = timezone.now()
-    qs = queryset or UserNotification.objects.filter(recipient=user, is_read=False)
+    qs = queryset or customer_visible_notifications(user).filter(is_read=False)
     return qs.update(is_read=True, read_at=now, updated_at=now)

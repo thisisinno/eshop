@@ -11,12 +11,14 @@ import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { BookmarkButton } from "./ProductActions";
 import { useCart } from "@/components/cart/CartProvider";
+import { useNotifications } from "@/components/notifications/NotificationProvider";
 
 const money = (amount: string, currency: string) => `${currency} ${Number(amount).toLocaleString()}`;
 
 export function ProductQuickView({ productId, open, onClose }: { productId: number | null; open: boolean; onClose: () => void }) {
   const router = useRouter();
-  const { setCount } = useCart();
+  const { setCartState } = useCart();
+  const { refreshUnreadCount } = useNotifications();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [cartLoading, setCartLoading] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -70,8 +72,9 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
       return;
     }
     const cart = await response.json() as Cart;
-    setCount(cart.total_quantity);
+    setCartState(cart);
     toast.success("Added to cart.");
+    void refreshUnreadCount();
     router.refresh();
     if (checkout) {
       onClose();

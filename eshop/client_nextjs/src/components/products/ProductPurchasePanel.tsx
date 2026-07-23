@@ -8,12 +8,14 @@ import type { Cart, ProductDetail } from "@/types/storefront";
 import { AddToCartButton, BookmarkButton } from "./ProductActions";
 import { Button } from "@/components/ui/Button";
 import { useCart } from "@/components/cart/CartProvider";
+import { useNotifications } from "@/components/notifications/NotificationProvider";
 
 const money = (amount: string, currency: string) => `${currency} ${Number(amount).toLocaleString()}`;
 
 export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
   const router = useRouter();
-  const { setCount } = useCart();
+  const { setCartState } = useCart();
+  const { refreshUnreadCount } = useNotifications();
   const [quantity, setQuantity] = useState(product.minimum_order_quantity || 1);
   const [buying, setBuying] = useState(false);
   async function buyNow() {
@@ -34,7 +36,8 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
       return;
     }
     const cart = await response.json() as Cart;
-    setCount(cart.total_quantity);
+    setCartState(cart);
+    void refreshUnreadCount();
     router.push("/checkout");
     router.refresh();
   }

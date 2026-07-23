@@ -15,7 +15,7 @@ from api.serializers.storefront import (
     PublicProductCardSerializer, PublicProductDetailSerializer, PublicStoreDetailSerializer, PublicStoreSummarySerializer,
     UserNotificationSerializer,
 )
-from api.services.notifications import create_activity_notification, mark_all_read, mark_notification_read, notify_admin_of_new_order, sync_order_notification
+from api.services.notifications import create_activity_notification, mark_all_read, mark_notification_read, notify_admin_of_new_order, sync_order_notification, visible_notifications_for
 from api.services.recommendations import build_home_shelves, public_products_queryset
 
 
@@ -286,7 +286,7 @@ class CartItemDetailAPIView(APIView):
         item = get_object_or_404(CartItem.objects.select_related("cart", "product"), pk=item_id, cart__user=request.user)
         record_activity(request, UserActivityLog.Action.REMOVE_FROM_CART, product=item.product, trader=item.product.trader)
         item.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(CartSerializer(get_cart(request.user), context={"request": request}).data)
 
 
 class CustomerOrderCreateAPIView(APIView):
@@ -322,7 +322,10 @@ class StorefrontNotificationsAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        queryset = UserNotification.objects.filter(recipient=request.user).select_related(
+        audience = request.query_params.get("audience", "customer")
+        if audience == "admin" and not (request.user.is_staff or request.user.is_superuser):
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        queryset = visible_notifications_for(request.user, audience).select_related(
             "order", "product__trader", "product__category", "trader", "activity_log__product", "activity_log__trader",
         ).prefetch_related("product__media")
         if state := request.query_params.get("state"):
@@ -336,19 +339,24 @@ class StorefrontNotificationUnreadCountAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response({"count": UserNotification.objects.filter(recipient=request.user, is_read=False).count()})
+        audience = request.query_params.get("audience", "customer")
+        if audience == "admin" and not (request.user.is_staff or request.user.is_superuser):
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response({"count": visible_notifications_for(request.user, audience).filter(is_read=False).count()})
 
 
 class StorefrontNotificationDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        audience = request.query_params.get("audience", "customer")
+        if audience == "admin" and not (request.user.is_staff or request.user.is_superuser):
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         notification = get_object_or_404(
-            UserNotification.objects.select_related(
+            visible_notifications_for(request.user, audience).select_related(
                 "order", "product__trader", "product__category", "trader", "activity_log__product", "activity_log__trader",
             ).prefetch_related("product__media"),
             pk=pk,
-            recipient=request.user,
         )
         return Response(UserNotificationSerializer(notification, context={"request": request}).data)
 
@@ -357,7 +365,10 @@ class StorefrontNotificationReadAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
-        notification = get_object_or_404(UserNotification, pk=pk, recipient=request.user)
+        audience = request.query_params.get("audience", "customer")
+        if audience == "admin" and not (request.user.is_staff or request.user.is_superuser):
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        notification = get_object_or_404(visible_notifications_for(request.user, audience), pk=pk)
         mark_notification_read(notification)
         return Response(UserNotificationSerializer(notification, context={"request": request}).data)
 
@@ -366,7 +377,10 @@ class StorefrontNotificationReadAllAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        queryset = UserNotification.objects.filter(recipient=request.user, is_read=False)
+        audience = request.query_params.get("audience", "customer")
+        if audience == "admin" and not (request.user.is_staff or request.user.is_superuser):
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        queryset = visible_notifications_for(request.user, audience).filter(is_read=False)
         if state := request.query_params.get("state"):
             queryset = queryset.filter(lifecycle_state=state)
         updated = mark_all_read(request.user, queryset)

@@ -19,8 +19,8 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!token) return Response.json({ error: "Sign in required." }, { status: 401 });
   const { itemId } = await params;
   try {
-    await djangoFetch(`/storefront/cart/items/${itemId}/`, { method: "DELETE" }, token);
-    return new Response(null, { status: 204 });
+    const data = await djangoFetch<Cart>(`/storefront/cart/items/${itemId}/`, { method: "DELETE" }, token);
+    return Response.json(data);
   } catch (error) {
     return apiErrorResponse(error);
   }

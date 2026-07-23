@@ -26,6 +26,7 @@ import {
 import type { Cart, ProductCard, StoreSummary, User } from "@/types/storefront";
 import { ButtonLink } from "@/components/ui/Button";
 import { useCart } from "@/components/cart/CartProvider";
+import { useNotifications } from "@/components/notifications/NotificationProvider";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 
 const primaryNav = [
@@ -53,15 +54,26 @@ function isActive(pathname: string, href: string) {
 
 function NavBadge({ count }: { count: number }) {
   if (count <= 0) return null;
-  return <span className="absolute -right-1 top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-[var(--color-black)] px-1 text-[10px] font-black text-white">{count > 99 ? "99+" : count}</span>;
+  const label = count > 99 ? "99+" : String(count);
+  return <span className="absolute -right-2 -top-2 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-[var(--color-black)] px-1 text-[10px] font-black leading-none text-white transition duration-180 motion-reduce:transition-none">{label}</span>;
+}
+
+function IconWithBadge({ children, count }: { children: React.ReactNode; count: number }) {
+  return (
+    <span className="relative inline-flex">
+      {children}
+      <NavBadge count={count} />
+    </span>
+  );
 }
 
 function CartLink() {
   const { count } = useCart();
   return (
     <Link aria-label="Cart" href="/cart" className="relative grid h-11 w-11 place-items-center rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.97]">
-      <ShoppingBag aria-hidden className="h-5 w-5" />
-      <NavBadge count={count} />
+      <IconWithBadge count={count}>
+        <ShoppingBag aria-hidden className="h-5 w-5" />
+      </IconWithBadge>
     </Link>
   );
 }
@@ -101,8 +113,9 @@ function MoreMenuButton({ user, canPost, className, labelClassName = "hidden tex
   );
 }
 
-export function LeftNav({ user, canPost, unreadCount }: { user: User | null; canPost: boolean; unreadCount: number }) {
+export function LeftNav({ user, canPost }: { user: User | null; canPost: boolean }) {
   const pathname = usePathname();
+  const { unreadCount } = useNotifications();
   const [expanded, setExpanded] = useState(false);
   const items = useMemo(() => moreItems(canPost), [canPost]);
   return (
@@ -114,9 +127,12 @@ export function LeftNav({ user, canPost, unreadCount }: { user: User | null; can
           const active = isActive(pathname, href);
           return (
             <Link key={href} href={target} aria-label={label} className={`relative flex h-12 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4 ${active ? "font-black" : "font-medium"}`}>
-              <Icon aria-hidden className="h-6 w-6" strokeWidth={active ? 2.7 : 2.1} />
+              {label === "Notifications" ? (
+                <IconWithBadge count={unreadCount}>
+                  <Icon aria-hidden className="h-6 w-6" strokeWidth={active ? 2.7 : 2.1} />
+                </IconWithBadge>
+              ) : <Icon aria-hidden className="h-6 w-6" strokeWidth={active ? 2.7 : 2.1} />}
               <span className="hidden text-xl xl:inline">{label}</span>
-              {label === "Notifications" ? <NavBadge count={unreadCount} /> : null}
             </Link>
           );
         })}
@@ -146,11 +162,13 @@ export function LeftNav({ user, canPost, unreadCount }: { user: User | null; can
   );
 }
 
-export function BottomNav({ user, canPost, unreadCount }: { user: User | null; canPost: boolean; unreadCount: number }) {
+export function BottomNav({ user, canPost }: { user: User | null; canPost: boolean }) {
   const pathname = usePathname();
+  const { unreadCount } = useNotifications();
+  const suppressFab = pathname === "/cart" || pathname === "/checkout" || pathname.startsWith("/checkout/");
   return (
     <>
-      {canPost ? <Link aria-label="Post product" href="/post/product" className="fixed bottom-[calc(86px+env(safe-area-inset-bottom))] right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-[var(--color-black)] text-white transition active:scale-[0.97] md:hidden"><Plus aria-hidden className="h-7 w-7" /></Link> : null}
+      {canPost && !suppressFab ? <Link aria-label="Post product" href="/post/product" className="fixed bottom-[calc(86px+env(safe-area-inset-bottom))] right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-[var(--color-black)] text-white transition active:scale-[0.97] md:hidden"><Plus aria-hidden className="h-7 w-7" /></Link> : null}
       <nav className="fixed inset-x-0 bottom-0 z-40 grid h-[76px] grid-cols-4 border-t border-[var(--color-border)] bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {mobileNav.map(({ label, href, Icon }) => {
           const target = label === "Profile" && !user ? "/auth/sign-in" : href;
@@ -158,9 +176,12 @@ export function BottomNav({ user, canPost, unreadCount }: { user: User | null; c
           return (
             <Link key={href} href={target} className={`relative flex min-h-11 flex-col items-center justify-center gap-1 text-xs transition active:scale-[0.97] ${active ? "font-black text-[var(--color-text)]" : "font-semibold text-[var(--color-text-secondary)]"}`}>
               <span className={`absolute top-1 h-1 w-5 rounded-full bg-[var(--color-black)] transition ${active ? "opacity-100" : "opacity-0"}`} />
-              <Icon aria-hidden className="h-5 w-5" strokeWidth={active ? 2.7 : 2.1} />
+              {label === "Notifications" ? (
+                <IconWithBadge count={unreadCount}>
+                  <Icon aria-hidden className="h-5 w-5" strokeWidth={active ? 2.7 : 2.1} />
+                </IconWithBadge>
+              ) : <Icon aria-hidden className="h-5 w-5" strokeWidth={active ? 2.7 : 2.1} />}
               {label}
-              {label === "Notifications" ? <NavBadge count={unreadCount} /> : null}
             </Link>
           );
         })}

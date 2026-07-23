@@ -23,7 +23,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
           <Tab href="/notifications?tab=completed" active={tab === "completed"}>Completed</Tab>
         </div>
       </div>
-      <NotificationsClient initial={data.results} tab={tab} />
+      <NotificationsClient key={`${tab}:${data.results.map((item) => item.id).join(",")}`} initial={data.results} tab={tab} />
     </section>
   );
 }

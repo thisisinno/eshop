@@ -3,6 +3,7 @@ import { BottomNav, Header, LeftNav, RightRail } from "@/components/navigation/N
 import { canPostProduct } from "@/lib/auth/session";
 import { serverGet } from "@/lib/api/django";
 import { CartProvider } from "@/components/cart/CartProvider";
+import { NotificationProvider } from "@/components/notifications/NotificationProvider";
 import type { Cart, StoreSummary, HomeResponse } from "@/types/storefront";
 
 export async function Shell({ children, user }: { children: React.ReactNode; user: User | null }) {
@@ -15,14 +16,16 @@ export async function Shell({ children, user }: { children: React.ReactNode; use
   const recent = home.shelves.find((shelf) => shelf.key === "recently_viewed")?.products ?? [];
   const postable = canPostProduct(user);
   return (
-    <CartProvider initialCount={cart?.total_quantity ?? 0}>
-      <Header />
-      <LeftNav user={user} canPost={postable} unreadCount={unread.count} />
-      <main className="app-shell">
-        <div className="main-column feed-column">{children}</div>
-      </main>
-      <RightRail cart={cart} stores={stores.slice(0, 4)} recent={recent.slice(0, 3)} />
-      <BottomNav user={user} canPost={postable} unreadCount={unread.count} />
-    </CartProvider>
+    <NotificationProvider initialUnreadCount={unread.count}>
+      <CartProvider initialCart={cart}>
+        <Header />
+        <LeftNav user={user} canPost={postable} />
+        <main className="app-shell">
+          <div className="main-column feed-column">{children}</div>
+        </main>
+        <RightRail cart={cart} stores={stores.slice(0, 4)} recent={recent.slice(0, 3)} />
+        <BottomNav user={user} canPost={postable} />
+      </CartProvider>
+    </NotificationProvider>
   );
 }

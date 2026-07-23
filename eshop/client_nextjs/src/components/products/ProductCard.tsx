@@ -41,10 +41,10 @@ export function ProductCard({ product, variant = "discovery" }: { product: Produ
             {discount ? <span className="text-[12px] font-semibold text-[var(--color-text-secondary)] line-through">{money(product.compare_at_price!, product.currency)}</span> : null}
             {discount ? <span className="text-[12px] font-semibold text-[var(--color-text-secondary)]">{discount}% off</span> : null}
           </div>
-          <div className="mt-auto flex min-h-12 items-center gap-2 border-t border-[var(--color-border)] pt-2">
-            {variant === "my-list" ? <AddToCartButton productId={product.id} productName={product.name} compact withLabel /> : null}
-            <BookmarkButton productId={product.id} initialBookmarked={product.is_bookmarked} />
-            <IconButton aria-label={`More information about ${product.name}`} onClick={() => setQuickViewOpen(true)}>
+          <div className="mt-auto flex min-h-11 items-center gap-1.5 border-t border-[var(--color-border)] pt-2">
+            {variant === "my-list" ? <AddToCartButton productId={product.id} productName={product.name} mode="icon" /> : null}
+            <BookmarkButton productId={product.id} initialBookmarked={product.is_bookmarked} compact={variant === "my-list"} />
+            <IconButton aria-label={`More information about ${product.name}`} onClick={() => setQuickViewOpen(true)} className={variant === "my-list" ? "h-9 w-9" : undefined}>
               <Info aria-hidden className="h-4.5 w-4.5" />
             </IconButton>
           </div>

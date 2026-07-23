@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useCart } from "@/components/cart/CartProvider";
+import { useNotifications } from "@/components/notifications/NotificationProvider";
 import type { OrderDetail, User } from "@/types/storefront";
 
 type FormState = {
@@ -23,7 +24,8 @@ type FormState = {
 
 export function CheckoutForm({ user }: { user: User }) {
   const router = useRouter();
-  const { setCount } = useCart();
+  const { setCartState } = useCart();
+  const { refreshUnreadCount } = useNotifications();
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<FormState>({
     customer_full_name: `${user.first_name || ""} ${user.last_name || ""}`.trim() || user.username,
@@ -60,7 +62,8 @@ export function CheckoutForm({ user }: { user: User }) {
       return;
     }
     const order = await response.json() as OrderDetail;
-    setCount(0);
+    setCartState(null);
+    void refreshUnreadCount();
     toast.success("Order submitted.");
     router.replace(`/orders?created=${order.id}`);
     router.refresh();
