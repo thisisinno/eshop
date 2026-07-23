@@ -1,7 +1,9 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
@@ -37,6 +39,22 @@ class OrderAPITests(TestCase):
         filtered = self.client.get("/api/orders/", {"search": "Rice", "status": "requested", "customer_phone": "255700"})
         self.assertEqual(filtered.status_code, 200)
         self.assertEqual(len(filtered.data), 1)
+        self.assertEqual(filtered.data[0]["preview_items"][0]["product_name"], "Rice")
+
+    def test_order_list_preview_uses_prefetched_items(self):
+        for index in range(3):
+            create_order({
+                "customer_full_name": f"Customer {index}",
+                "customer_phone": f"25570000000{index}",
+                "customer_email": "",
+                "delivery_fee": Decimal("0.00"),
+            }, [{"product": self.product, "quantity": 1, "unit_price": Decimal("100.00")}], user=self.admin)
+
+        with CaptureQueriesContext(connection) as captured:
+            response = self.client.get("/api/orders/")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data[0]["preview_items"])
+        self.assertLessEqual(len(captured), 10)
 
     def test_status_action_validates_transitions(self):
         order = create_order({

@@ -7,51 +7,48 @@ import {
 } from "@/components/ui/dropdown";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BellIcon } from "./icons";
+import { apiGet, apiPatch } from "@/lib/api/client";
 
-const notificationList = [
-  {
-    image: "/images/user/user-15.png",
-    title: "Piter Joined the Team!",
-    subTitle: "Congratulate him",
-  },
-  {
-    image: "/images/user/user-03.png",
-    title: "New message",
-    subTitle: "Devid sent a new message",
-  },
-  {
-    image: "/images/user/user-26.png",
-    title: "New Payment received",
-    subTitle: "Check your earnings",
-  },
-  {
-    image: "/images/user/user-28.png",
-    title: "Jolly completed tasks",
-    subTitle: "Assign new task",
-  },
-  {
-    image: "/images/user/user-27.png",
-    title: "Roman Joined the Team!",
-    subTitle: "Congratulate him",
-  },
-];
+type AdminNotification = {
+  id: number;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+  order: { id: number; order_number: string; status: string } | null;
+};
+type Paginated<T> = { results: T[] };
 
 export function Notification() {
   const [isOpen, setIsOpen] = useState(false);
-  const [isDotVisible, setIsDotVisible] = useState(true);
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const isMobile = useIsMobile();
+  const unread = notifications.filter((item) => !item.is_read).length;
+
+  useEffect(() => {
+    apiGet<Paginated<AdminNotification>>("/storefront/notifications/?state=pending")
+      .then((data) => setNotifications(data.results.filter((item) => item.order).slice(0, 6)))
+      .catch(() => setNotifications([]));
+  }, []);
+
+  async function markRead(item: AdminNotification) {
+    if (!item.is_read) {
+      try {
+        const updated = await apiPatch<AdminNotification>(`/storefront/notifications/${item.id}/read/`, {});
+        setNotifications((current) => current.map((next) => next.id === updated.id ? updated : next));
+      } catch {}
+    }
+    setIsOpen(false);
+  }
 
   return (
     <Dropdown
       isOpen={isOpen}
       setIsOpen={(open) => {
         setIsOpen(open);
-
-        if (setIsDotVisible) setIsDotVisible(false);
       }}
     >
       <DropdownTrigger
@@ -61,13 +58,13 @@ export function Notification() {
         <span className="relative">
           <BellIcon />
 
-          {isDotVisible && (
+          {unread > 0 && (
             <span
               className={cn(
-                "absolute top-0 right-0 z-1 size-2 rounded-full bg-red-light ring-2 ring-gray-2 dark:ring-dark-3",
+                "absolute top-0 right-0 z-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-dark px-1 text-[10px] font-bold text-white ring-2 ring-gray-2 dark:bg-white dark:text-dark dark:ring-dark-3",
               )}
             >
-              <span className="absolute inset-0 -z-1 animate-ping rounded-full bg-red-light opacity-75" />
+              {unread > 9 ? "9+" : unread}
             </span>
           )}
         </span>
@@ -81,26 +78,18 @@ export function Notification() {
           <span className="text-lg font-medium text-dark dark:text-white">
             Notifications
           </span>
-          <span className="rounded-md bg-primary px-2.25 py-0.5 text-xs font-medium text-white">
-            5 new
-          </span>
+          <span className="text-xs font-medium text-dark-5 dark:text-dark-6">{unread} new</span>
         </div>
 
         <ul className="mb-3 max-h-92 space-y-1.5 overflow-y-auto">
-          {notificationList.map((item, index) => (
-            <li key={index} role="menuitem">
+          {notifications.map((item) => (
+            <li key={item.id} role="menuitem">
               <Link
-                href="#"
-                onClick={() => setIsOpen(false)}
+                href={item.order ? `/orders/${item.order.id}` : "/orders"}
+                onClick={() => void markRead(item)}
                 className="flex items-center gap-4 rounded-lg px-2 py-1.5 outline-none hover:bg-gray-2 focus-visible:bg-gray-2 dark:hover:bg-dark-3 dark:focus-visible:bg-dark-3"
               >
-                <Image
-                  src={item.image}
-                  className="size-14 rounded-full object-cover"
-                  width={200}
-                  height={200}
-                  alt="User"
-                />
+                <span className="grid size-12 shrink-0 place-items-center rounded-full bg-gray-2 text-dark dark:bg-dark-2 dark:text-white"><BellIcon /></span>
 
                 <div>
                   <strong className="block text-sm font-medium text-dark dark:text-white">
@@ -108,16 +97,17 @@ export function Notification() {
                   </strong>
 
                   <span className="truncate text-sm font-medium text-dark-5 dark:text-dark-6">
-                    {item.subTitle}
+                    {item.message}
                   </span>
                 </div>
               </Link>
             </li>
           ))}
+          {!notifications.length && <li className="px-2 py-6 text-center text-sm text-dark-5 dark:text-dark-6">No order notifications.</li>}
         </ul>
 
         <Link
-          href="#"
+          href="/orders"
           onClick={() => setIsOpen(false)}
           className="block rounded-lg border border-primary p-2 text-center text-sm font-medium tracking-wide text-primary transition-colors outline-none hover:bg-blue-light-5 focus:bg-blue-light-5 focus:text-primary focus-visible:border-primary dark:border-dark-3 dark:text-dark-6 dark:hover:border-dark-5 dark:hover:bg-dark-3 dark:hover:text-dark-7 dark:focus-visible:border-dark-5 dark:focus-visible:bg-dark-3 dark:focus-visible:text-dark-7"
         >

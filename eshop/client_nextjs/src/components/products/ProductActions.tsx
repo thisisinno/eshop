@@ -40,7 +40,7 @@ export function BookmarkButton({ productId, initialBookmarked, compact = false }
   );
 }
 
-export function AddToCartButton({ productId, productName, quantity = 1, compact = false }: { productId: number; productName: string; quantity?: number; compact?: boolean }) {
+export function AddToCartButton({ productId, productName, quantity = 1, compact = false, withLabel = false }: { productId: number; productName: string; quantity?: number; compact?: boolean; withLabel?: boolean }) {
   const router = useRouter();
   const { setCount, increment } = useCart();
   const [loading, setLoading] = useState(false);
@@ -72,8 +72,9 @@ export function AddToCartButton({ productId, productName, quantity = 1, compact 
   }
   if (compact) {
     return (
-      <Button size="icon" variant="secondary" loading={loading} onClick={add} aria-label={`Add ${productName} to cart`} className="rounded-full">
+      <Button size={withLabel ? "sm" : "icon"} variant="secondary" loading={loading} onClick={add} aria-label={`Add ${productName} to cart`} className="rounded-full">
         {done ? <Check aria-hidden className="h-5 w-5" /> : <ShoppingBag aria-hidden className="h-5 w-5" />}
+        {withLabel ? <span>{done ? "Added" : "Add to cart"}</span> : null}
       </Button>
     );
   }

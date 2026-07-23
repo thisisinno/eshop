@@ -63,13 +63,26 @@ class OrderStatusHistorySerializer(serializers.ModelSerializer):
 
 
 class OrderListSerializer(serializers.ModelSerializer):
+    preview_items = serializers.SerializerMethodField()
+
     class Meta:
         model = Order
         fields = (
             "id", "order_number", "customer_full_name", "customer_phone", "customer_email",
             "status", "payment_status", "source", "total_amount", "currency", "items_count",
-            "total_quantity", "created_at", "updated_at",
+            "total_quantity", "preview_items", "created_at", "updated_at",
         )
+
+    def get_preview_items(self, obj):
+        items = list(obj.items.all())[:3]
+        return [
+            {
+                "product_name": item.product_name_snapshot,
+                "product_media_url": item.product_media_url,
+                "quantity": item.quantity,
+            }
+            for item in items
+        ]
 
 
 class OrderDetailSerializer(serializers.ModelSerializer):

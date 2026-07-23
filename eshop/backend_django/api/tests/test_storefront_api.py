@@ -2,13 +2,15 @@ from decimal import Decimal
 
 from django.contrib.auth.models import Permission, User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from api.models import Cart, CartItem, Product, ProductCategory, ProductMedia, StoreFollow, TraderProfile
+from api.models import Cart, CartItem, Order, Product, ProductBookmark, ProductCategory, ProductMedia, StoreFollow, TraderProfile, UserActivityLog, UserNotification
+from api.services.orders import transition_order
 
 
+@override_settings(MEDIA_ROOT="/tmp/eshop-test-media")
 class StorefrontAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
@@ -76,6 +78,75 @@ class StorefrontAPITests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(self.product.bookmarks.count(), 1)
 
+    def test_bookmark_list_endpoint_auth_visibility_and_privacy(self):
+        anonymous = self.client.get("/api/storefront/bookmarks/")
+        self.assertIn(anonymous.status_code, (401, 403))
+
+        self.auth(self.customer)
+        response = self.client.get("/api/storefront/bookmarks/")
+        self.assertEqual(response.status_code, 200)
+
+        self.client.post(f"/api/storefront/products/{self.product.id}/bookmark/")
+        response = self.client.get("/api/storefront/bookmarks/")
+        names = [item["name"] for item in response.data["results"]]
+        self.assertIn(self.product.name, names)
+
+        self.client.delete(f"/api/storefront/products/{self.product.id}/bookmark/")
+        response = self.client.get("/api/storefront/bookmarks/")
+        names = [item["name"] for item in response.data["results"]]
+        self.assertNotIn(self.product.name, names)
+
+        ProductBookmark.objects.create(user=self.customer, product=self.product)
+        other = User.objects.create_user(username="other-list", password="password123")
+        self.auth(other)
+        response = self.client.get("/api/storefront/bookmarks/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["results"], [])
+
+    def test_bookmark_list_excludes_inactive_and_unapproved_store_products(self):
+        ProductBookmark.objects.create(user=self.customer, product=self.product)
+        ProductBookmark.objects.create(user=self.customer, product=self.draft)
+        ProductBookmark.objects.create(user=self.customer, product=self.pending_store_product)
+        self.auth(self.customer)
+        response = self.client.get("/api/storefront/bookmarks/")
+        self.assertEqual(response.status_code, 200)
+        names = [item["name"] for item in response.data["results"]]
+        self.assertEqual(names, [self.product.name])
+
+    def test_action_notifications_and_passive_activity_rules(self):
+        self.auth(self.customer)
+        self.client.post(f"/api/storefront/products/{self.product.id}/bookmark/")
+        self.client.post("/api/storefront/cart/items/", {"product": self.product.id, "quantity": 1}, format="json")
+        self.client.post(f"/api/storefront/stores/{self.store.slug}/follow/")
+        titles = list(UserNotification.objects.filter(recipient=self.customer).values_list("title", flat=True))
+        self.assertIn("Added to My List", titles)
+        self.assertIn("Added to cart", titles)
+        self.assertIn("Store followed", titles)
+        self.assertTrue(UserNotification.objects.filter(recipient=self.customer, lifecycle_state=UserNotification.LifecycleState.COMPLETED).exists())
+
+        self.client.get(f"/api/storefront/products/{self.product.id}/")
+        self.assertFalse(UserNotification.objects.filter(recipient=self.customer, activity_log__action=UserActivityLog.Action.PRODUCT_OPEN).exists())
+
+    def test_notification_api_ownership_read_and_unread_count(self):
+        other = User.objects.create_user(username="other-notification", password="password123")
+        own = UserNotification.objects.create(recipient=self.customer, notification_type="system", title="Own", lifecycle_state="pending")
+        other_notification = UserNotification.objects.create(recipient=other, notification_type="system", title="Other", lifecycle_state="pending")
+        self.auth(self.customer)
+        response = self.client.get("/api/storefront/notifications/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item["id"] for item in response.data["results"]], [own.id])
+        self.assertEqual(self.client.get(f"/api/storefront/notifications/{other_notification.id}/").status_code, 404)
+        self.assertEqual(self.client.patch(f"/api/storefront/notifications/{other_notification.id}/read/").status_code, 404)
+        count = self.client.get("/api/storefront/notifications/unread-count/")
+        self.assertEqual(count.data["count"], 1)
+        read = self.client.patch(f"/api/storefront/notifications/{own.id}/read/")
+        self.assertEqual(read.status_code, 200)
+        count = self.client.get("/api/storefront/notifications/unread-count/")
+        self.assertEqual(count.data["count"], 0)
+
+        self.client.credentials()
+        self.assertIn(self.client.get("/api/storefront/notifications/").status_code, (401, 403))
+
     def test_cart_quantity_and_stock_validation(self):
         self.auth(self.customer)
         response = self.client.post("/api/storefront/cart/items/", {"product": self.product.id, "quantity": 99}, format="json")
@@ -92,6 +163,45 @@ class StorefrontAPITests(TestCase):
         self.auth(other)
         forbidden = self.client.get(f"/api/storefront/orders/mine/{response.data['id']}/")
         self.assertEqual(forbidden.status_code, 404)
+
+    def test_order_notifications_lifecycle_and_cart_clear(self):
+        admin = User.objects.create_superuser(username="order-admin", password="password123")
+        cart = Cart.objects.create(user=self.customer)
+        CartItem.objects.create(cart=cart, product=self.product, quantity=2)
+        self.auth(self.customer)
+        response = self.client.post("/api/storefront/orders/", {"customer_full_name": "Customer One", "customer_phone": "555"}, format="json")
+        self.assertEqual(response.status_code, 201)
+        order = Order.objects.get(pk=response.data["id"])
+        self.assertFalse(CartItem.objects.filter(cart=cart).exists())
+        notification = UserNotification.objects.get(recipient=self.customer, order=order)
+        self.assertEqual(notification.lifecycle_state, UserNotification.LifecycleState.PENDING)
+        self.assertFalse(notification.is_read)
+        notification.mark_read()
+
+        for status in (Order.Status.CONFIRMED, Order.Status.PROCESSING, Order.Status.READY, Order.Status.SHIPPED):
+            order = transition_order(order, status, user=admin)
+            notification.refresh_from_db()
+            self.assertEqual(notification.lifecycle_state, UserNotification.LifecycleState.PENDING)
+            self.assertFalse(notification.is_read)
+            notification.mark_read()
+
+        order = transition_order(order, Order.Status.DELIVERED, user=admin)
+        notification.refresh_from_db()
+        self.assertEqual(notification.lifecycle_state, UserNotification.LifecycleState.COMPLETED)
+        self.assertFalse(notification.is_read)
+        self.assertIsNotNone(notification.completed_at)
+
+    def test_cancelled_and_rejected_orders_complete_notifications(self):
+        admin = User.objects.create_superuser(username="order-admin-2", password="password123")
+        for final_status in (Order.Status.CANCELLED, Order.Status.REJECTED):
+            cart = Cart.objects.create(user=User.objects.create_user(username=f"customer-{final_status}", password="password123"))
+            CartItem.objects.create(cart=cart, product=self.product, quantity=1)
+            self.auth(cart.user)
+            response = self.client.post("/api/storefront/orders/", {"customer_full_name": "Customer One", "customer_phone": "555"}, format="json")
+            order = Order.objects.get(pk=response.data["id"])
+            order = transition_order(order, final_status, user=admin)
+            notification = UserNotification.objects.get(recipient=cart.user, order=order)
+            self.assertEqual(notification.lifecycle_state, UserNotification.LifecycleState.COMPLETED)
 
     def test_media_validation_and_primary_behavior(self):
         image = SimpleUploadedFile("frame.jpg", b"x", content_type="image/jpeg")

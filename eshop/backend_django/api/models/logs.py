@@ -3,8 +3,10 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from .catalog import Product, ProductMedia
+from .orders import Order
 from .registration import TraderProfile
 
 
@@ -154,3 +156,52 @@ class SystemRequestLog(models.Model):
 
     def __str__(self):
         return f"{self.method} {self.path} {self.status_code}"
+
+
+class UserNotification(models.Model):
+    class NotificationType(models.TextChoices):
+        ORDER = "order", "Order"
+        MY_LIST = "my_list", "My List"
+        CART = "cart", "Cart"
+        STORE = "store", "Store"
+        LIKE = "like", "Like"
+        REVIEW = "review", "Review"
+        SYSTEM = "system", "System"
+
+    class LifecycleState(models.TextChoices):
+        PENDING = "pending", "Pending"
+        COMPLETED = "completed", "Completed"
+
+    recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
+    notification_type = models.CharField(max_length=30, choices=NotificationType.choices)
+    title = models.CharField(max_length=255)
+    message = models.TextField(blank=True)
+    lifecycle_state = models.CharField(max_length=20, choices=LifecycleState.choices, default=LifecycleState.PENDING)
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    order = models.ForeignKey(Order, null=True, blank=True, on_delete=models.CASCADE, related_name="notifications")
+    product = models.ForeignKey(Product, null=True, blank=True, on_delete=models.SET_NULL, related_name="notifications")
+    trader = models.ForeignKey(TraderProfile, null=True, blank=True, on_delete=models.SET_NULL, related_name="notifications")
+    activity_log = models.ForeignKey(UserActivityLog, null=True, blank=True, on_delete=models.SET_NULL, related_name="notifications")
+    metadata = models.JSONField(default=dict, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("recipient", "lifecycle_state", "created_at")),
+            models.Index(fields=("recipient", "is_read")),
+            models.Index(fields=("order",)),
+            models.Index(fields=("product",)),
+        ]
+
+    def mark_read(self):
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save(update_fields=["is_read", "read_at", "updated_at"])
+
+    def __str__(self):
+        return f"{self.recipient} - {self.title}"

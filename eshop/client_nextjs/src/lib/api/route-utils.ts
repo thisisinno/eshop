@@ -4,8 +4,11 @@ import { DjangoApiError, djangoFetch, getServerToken } from "./django";
 
 const ALLOWED_PREFIXES = [
   "/storefront/products/",
+  "/storefront/bookmarks/",
   "/storefront/cart/",
   "/storefront/cart/items/",
+  "/storefront/orders/",
+  "/storefront/notifications/",
   "/storefront/stores/",
   "/catalog/products/",
 ] as const;

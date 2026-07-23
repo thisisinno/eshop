@@ -8,6 +8,7 @@ import {
   Bell,
   Check,
   CheckCircle2,
+  ChevronsUp,
   Ellipsis,
   Home,
   List,
@@ -50,12 +51,17 @@ function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
+function NavBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return <span className="absolute -right-1 top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-[var(--color-black)] px-1 text-[10px] font-black text-white">{count > 99 ? "99+" : count}</span>;
+}
+
 function CartLink() {
   const { count } = useCart();
   return (
     <Link aria-label="Cart" href="/cart" className="relative grid h-11 w-11 place-items-center rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.97]">
       <ShoppingBag aria-hidden className="h-5 w-5" />
-      {count > 0 ? <span className="absolute right-1 top-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-[var(--color-black)] px-1 text-[10px] font-black text-white">{count > 99 ? "99+" : count}</span> : null}
+      <NavBadge count={count} />
     </Link>
   );
 }
@@ -67,6 +73,19 @@ export function Header() {
       <CartLink />
     </header>
   );
+}
+
+function moreItems(canPost: boolean) {
+  return [
+    { href: "/search", label: "Search", Icon: Search },
+    { href: "/categories", label: "Categories", Icon: List },
+    { href: "/saved", label: "My List", Icon: Check },
+    { href: "/orders", label: "Orders", Icon: Package },
+    { href: "/cart", label: "Cart", Icon: ShoppingBag },
+    { href: "/search?tab=stores", label: "Stores", Icon: Store },
+    { href: "/profile", label: "Settings", Icon: Settings },
+    ...(canPost ? [{ href: "/post/product", label: "Post product", Icon: Plus }] : []),
+  ];
 }
 
 function MoreMenuButton({ user, canPost, className, labelClassName = "hidden text-base xl:inline" }: { user: User | null; canPost: boolean; className?: string; labelClassName?: string }) {
@@ -82,8 +101,10 @@ function MoreMenuButton({ user, canPost, className, labelClassName = "hidden tex
   );
 }
 
-export function LeftNav({ user, canPost }: { user: User | null; canPost: boolean }) {
+export function LeftNav({ user, canPost, unreadCount }: { user: User | null; canPost: boolean; unreadCount: number }) {
   const pathname = usePathname();
+  const [expanded, setExpanded] = useState(false);
+  const items = useMemo(() => moreItems(canPost), [canPost]);
   return (
     <aside className="fixed left-0 top-0 z-30 hidden h-screen bg-white md:block md:w-[78px] xl:w-[260px] 2xl:w-[275px]">
       <div className="ml-auto flex h-full w-[78px] flex-col gap-2 border-r border-[var(--color-border)] p-3 xl:w-[250px] xl:border-r-0">
@@ -92,13 +113,22 @@ export function LeftNav({ user, canPost }: { user: User | null; canPost: boolean
           const target = label === "Profile" && !user ? "/auth/sign-in" : href;
           const active = isActive(pathname, href);
           return (
-            <Link key={href} href={target} aria-label={label} className={`flex h-12 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4 ${active ? "font-black" : "font-medium"}`}>
+            <Link key={href} href={target} aria-label={label} className={`relative flex h-12 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4 ${active ? "font-black" : "font-medium"}`}>
               <Icon aria-hidden className="h-6 w-6" strokeWidth={active ? 2.7 : 2.1} />
               <span className="hidden text-xl xl:inline">{label}</span>
+              {label === "Notifications" ? <NavBadge count={unreadCount} /> : null}
             </Link>
           );
         })}
-        <MoreMenuButton user={user} canPost={canPost} className="flex h-12 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4 xl:text-xl" />
+        <button type="button" onClick={() => setExpanded((current) => !current)} aria-expanded={expanded} className="flex h-12 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4 xl:text-xl">
+          {expanded ? <ChevronsUp aria-hidden className="h-5 w-5" /> : <Ellipsis aria-hidden className="h-5 w-5" strokeWidth={2.2} />}
+          <span className="hidden text-base xl:inline">{expanded ? "Swipe up" : "More"}</span>
+        </button>
+        <div className={`min-h-0 overflow-hidden transition-all duration-180 ${expanded ? "max-h-[34vh] border-y border-[var(--color-border)] py-2" : "max-h-0"}`}>
+          <nav className="flex max-h-[34vh] min-h-0 flex-col gap-1 overflow-y-auto pr-1">
+            {items.map(({ href, label, Icon }) => <Link key={href} href={href} aria-label={label} className="flex h-11 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4"><Icon aria-hidden className="h-5 w-5" /><span className="hidden xl:inline">{label}</span></Link>)}
+          </nav>
+        </div>
         {canPost ? (
           <ButtonLink href="/post/product" className="mt-3 h-12 w-12 p-0 xl:w-[210px] xl:px-5" aria-label="Post product">
             <Plus aria-hidden className="h-5 w-5" /><span className="hidden xl:inline">Post product</span>
@@ -116,7 +146,7 @@ export function LeftNav({ user, canPost }: { user: User | null; canPost: boolean
   );
 }
 
-export function BottomNav({ user, canPost }: { user: User | null; canPost: boolean }) {
+export function BottomNav({ user, canPost, unreadCount }: { user: User | null; canPost: boolean; unreadCount: number }) {
   const pathname = usePathname();
   return (
     <>
@@ -130,6 +160,7 @@ export function BottomNav({ user, canPost }: { user: User | null; canPost: boole
               <span className={`absolute top-1 h-1 w-5 rounded-full bg-[var(--color-black)] transition ${active ? "opacity-100" : "opacity-0"}`} />
               <Icon aria-hidden className="h-5 w-5" strokeWidth={active ? 2.7 : 2.1} />
               {label}
+              {label === "Notifications" ? <NavBadge count={unreadCount} /> : null}
             </Link>
           );
         })}
@@ -142,16 +173,7 @@ export function BottomNav({ user, canPost }: { user: User | null; canPost: boole
 function MoreSheet({ open, onClose, user, canPost }: { open: boolean; onClose: () => void; user: User | null; canPost: boolean }) {
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
-  const items = useMemo(() => [
-    { href: "/search", label: "Search", Icon: Search },
-    { href: "/categories", label: "Categories", Icon: List },
-    { href: "/saved", label: "My List", Icon: Check },
-    { href: "/orders", label: "Orders", Icon: Package },
-    { href: "/cart", label: "Cart", Icon: ShoppingBag },
-    { href: "/search?tab=stores", label: "Stores", Icon: Store },
-    { href: "/profile", label: "Settings", Icon: Settings },
-    ...(canPost ? [{ href: "/post/product", label: "Post product", Icon: Plus }] : []),
-  ], [canPost]);
+  const items = useMemo(() => moreItems(canPost), [canPost]);
 
   useEffect(() => {
     if (!open) return;

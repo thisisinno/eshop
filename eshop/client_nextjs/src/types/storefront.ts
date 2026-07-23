@@ -92,3 +92,65 @@ export type StoreDetail = StoreSummary & { phone: string; email: string; address
 
 export type CartItem = { id: number; product: ProductCard; quantity: number; line_total: string };
 export type Cart = { id: number; items: CartItem[]; subtotal: string; total_quantity: number };
+
+export type OrderPreviewItem = { product_name: string; product_media_url: string; quantity: number };
+export type OrderListItem = {
+  id: number;
+  order_number: string;
+  customer_full_name: string;
+  customer_phone: string;
+  customer_email: string;
+  status: string;
+  payment_status: string;
+  source: string;
+  total_amount: string;
+  currency: string;
+  items_count: number;
+  total_quantity: number;
+  preview_items: OrderPreviewItem[];
+  created_at: string;
+  updated_at: string;
+};
+export type OrderDetailItem = {
+  id: number;
+  product: number | null;
+  product_media_url: string;
+  product_name_snapshot: string;
+  trader_name_snapshot: string;
+  quantity: number;
+  unit_price: string;
+  line_discount: string;
+  line_total: string;
+};
+export type OrderStatusHistory = { id: number; from_status: string; to_status: string; note: string; changed_by_name: string | null; created_at: string };
+export type OrderDetail = OrderListItem & {
+  customer_country: string;
+  customer_region: string;
+  customer_district: string;
+  customer_ward: string;
+  customer_street: string;
+  customer_address: string;
+  delivery_note: string;
+  subtotal_amount: string;
+  discount_amount: string;
+  delivery_fee: string;
+  items: OrderDetailItem[];
+  status_history: OrderStatusHistory[];
+};
+export type StorefrontNotification = {
+  id: number;
+  notification_type: string;
+  title: string;
+  message: string;
+  lifecycle_state: "pending" | "completed";
+  is_read: boolean;
+  read_at: string | null;
+  order: Pick<OrderListItem, "id" | "order_number" | "status" | "payment_status" | "total_amount" | "currency" | "items_count" | "total_quantity"> | null;
+  product: ProductCard | null;
+  store: StoreSummary | null;
+  activity: { id: number; action: string; product_name: string; trader_name: string; metadata: Record<string, unknown>; created_at: string } | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+};

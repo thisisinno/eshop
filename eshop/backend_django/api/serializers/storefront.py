@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 
-from api.models import Cart, CartItem, Order, OrderItem, Product, ProductBookmark, ProductCategory, ProductMedia, StoreFollow, TraderProfile
+from api.models import Cart, CartItem, Order, OrderItem, Product, ProductBookmark, ProductCategory, ProductMedia, StoreFollow, TraderProfile, UserActivityLog, UserNotification
 from api.serializers.catalog import product_media_file_url
 from api.services.orders import next_order_number
 from api.utils.request_meta import request_meta_snapshot
@@ -162,6 +162,35 @@ class CartSerializer(serializers.ModelSerializer):
 class CartItemWriteSerializer(serializers.Serializer):
     product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
     quantity = serializers.IntegerField(min_value=1)
+
+
+class NotificationOrderSummarySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Order
+        fields = ("id", "order_number", "status", "payment_status", "total_amount", "currency", "items_count", "total_quantity")
+
+
+class NotificationActivitySerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="product.name", read_only=True)
+    trader_name = serializers.CharField(source="trader.business_name", read_only=True)
+
+    class Meta:
+        model = UserActivityLog
+        fields = ("id", "action", "product_name", "trader_name", "metadata", "created_at")
+
+
+class UserNotificationSerializer(serializers.ModelSerializer):
+    order = NotificationOrderSummarySerializer(read_only=True)
+    product = PublicProductCardSerializer(read_only=True)
+    store = PublicStoreSummarySerializer(source="trader", read_only=True)
+    activity = NotificationActivitySerializer(source="activity_log", read_only=True)
+
+    class Meta:
+        model = UserNotification
+        fields = (
+            "id", "notification_type", "title", "message", "lifecycle_state", "is_read", "read_at",
+            "order", "product", "store", "activity", "metadata", "created_at", "updated_at", "completed_at",
+        )
 
 
 class CustomerOrderCreateSerializer(serializers.Serializer):

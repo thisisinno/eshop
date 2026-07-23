@@ -215,6 +215,8 @@ def create_order(validated_data, items, user=None, request=None):
         OrderItem.objects.create(order=order, **_line_fields(item))
     calculate_order_totals(order)
     OrderStatusHistory.objects.create(order=order, from_status="", to_status=order.status, changed_by=user)
+    from api.services.notifications import sync_order_notification
+    sync_order_notification(order)
     if request:
         record_order_activity(request, "create", order, 201)
     return order
@@ -238,6 +240,9 @@ def update_order(order, validated_data, items=None, user=None, request=None):
         record_order_activity(request, "update", order, 200)
         if old_payment_status != order.payment_status:
             record_order_activity(request, "payment-status-change", order, 200, {"from": old_payment_status, "to": order.payment_status})
+    if old_payment_status != order.payment_status:
+        from api.services.notifications import sync_order_notification
+        sync_order_notification(order)
     return order
 
 
@@ -294,6 +299,8 @@ def transition_order(order, new_status, user=None, note="", request=None, action
         raise serializers.ValidationError(exc.message_dict) from exc
     order.save()
     OrderStatusHistory.objects.create(order=order, from_status=old_status, to_status=new_status, changed_by=user, note=note)
+    from api.services.notifications import sync_order_notification
+    sync_order_notification(order)
     if request:
         record_order_activity(request, ACTION_LOG.get(action or "", "status-change"), order, 200, {"from": old_status, "to": new_status})
     return order

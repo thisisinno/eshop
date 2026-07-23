@@ -13,6 +13,8 @@ from api.views.orders import OrderActionAPIView, OrderDetailAPIView, OrdersAPIVi
 from api.views.storefront import (
     CartAPIView, CartItemDetailAPIView, CartItemsAPIView, CustomerOrderCreateAPIView,
     MyOrderDetailAPIView, MyOrdersAPIView, ProductBookmarkAPIView, ProductBookmarksAPIView, StoreFollowAPIView,
+    StorefrontNotificationDetailAPIView, StorefrontNotificationReadAllAPIView, StorefrontNotificationReadAPIView,
+    StorefrontNotificationUnreadCountAPIView, StorefrontNotificationsAPIView,
     StorefrontCategoriesAPIView, StorefrontCategoryDetailAPIView, StorefrontHomeAPIView,
     StorefrontProductDetailAPIView, StorefrontProductsAPIView, StorefrontStoreDetailAPIView,
     StorefrontStoresAPIView,
@@ -52,4 +54,9 @@ urlpatterns = [
     path("storefront/orders/", CustomerOrderCreateAPIView.as_view()),
     path("storefront/orders/mine/", MyOrdersAPIView.as_view()),
     path("storefront/orders/mine/<int:pk>/", MyOrderDetailAPIView.as_view()),
+    path("storefront/notifications/", StorefrontNotificationsAPIView.as_view()),
+    path("storefront/notifications/unread-count/", StorefrontNotificationUnreadCountAPIView.as_view()),
+    path("storefront/notifications/read-all/", StorefrontNotificationReadAllAPIView.as_view()),
+    path("storefront/notifications/<int:pk>/", StorefrontNotificationDetailAPIView.as_view()),
+    path("storefront/notifications/<int:pk>/read/", StorefrontNotificationReadAPIView.as_view()),
 ]

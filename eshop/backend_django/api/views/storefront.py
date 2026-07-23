@@ -8,12 +8,14 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.models import Cart, CartItem, Product, ProductBookmark, ProductCategory, StoreFollow, TraderProfile, UserActivityLog
+from api.models import Cart, CartItem, Product, ProductBookmark, ProductCategory, StoreFollow, TraderProfile, UserActivityLog, UserNotification
 from api.serializers.orders import OrderDetailSerializer, OrderListSerializer
 from api.serializers.storefront import (
     CartItemWriteSerializer, CartSerializer, CustomerOrderCreateSerializer, PublicCategorySerializer,
     PublicProductCardSerializer, PublicProductDetailSerializer, PublicStoreDetailSerializer, PublicStoreSummarySerializer,
+    UserNotificationSerializer,
 )
+from api.services.notifications import create_activity_notification, mark_all_read, mark_notification_read, notify_admin_of_new_order, sync_order_notification
 from api.services.recommendations import build_home_shelves, public_products_queryset
 
 
@@ -66,7 +68,7 @@ def annotate_stores(queryset, request):
 
 
 def record_activity(request, action, product=None, trader=None, metadata=None):
-    UserActivityLog.objects.create(
+    log = UserActivityLog.objects.create(
         user=request.user if request.user.is_authenticated else None,
         session_key=session_key(request),
         action=action,
@@ -74,6 +76,8 @@ def record_activity(request, action, product=None, trader=None, metadata=None):
         trader=trader,
         metadata=metadata or {},
     )
+    create_activity_notification(log)
+    return log
 
 
 class StorefrontHomeAPIView(APIView):
@@ -293,6 +297,8 @@ class CustomerOrderCreateAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         order = serializer.save()
         record_activity(request, UserActivityLog.Action.ORDER_REQUEST, metadata={"order_id": order.pk})
+        sync_order_notification(order)
+        notify_admin_of_new_order(order)
         return Response(OrderDetailSerializer(order, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
@@ -310,3 +316,58 @@ class MyOrderDetailAPIView(APIView):
     def get(self, request, pk):
         order = get_object_or_404(request.user.orders.prefetch_related("items", "status_history"), pk=pk)
         return Response(OrderDetailSerializer(order, context={"request": request}).data)
+
+
+class StorefrontNotificationsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        queryset = UserNotification.objects.filter(recipient=request.user).select_related(
+            "order", "product__trader", "product__category", "trader", "activity_log__product", "activity_log__trader",
+        ).prefetch_related("product__media")
+        if state := request.query_params.get("state"):
+            queryset = queryset.filter(lifecycle_state=state)
+        paginator = StorefrontPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        return paginator.get_paginated_response(UserNotificationSerializer(page, many=True, context={"request": request}).data)
+
+
+class StorefrontNotificationUnreadCountAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({"count": UserNotification.objects.filter(recipient=request.user, is_read=False).count()})
+
+
+class StorefrontNotificationDetailAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        notification = get_object_or_404(
+            UserNotification.objects.select_related(
+                "order", "product__trader", "product__category", "trader", "activity_log__product", "activity_log__trader",
+            ).prefetch_related("product__media"),
+            pk=pk,
+            recipient=request.user,
+        )
+        return Response(UserNotificationSerializer(notification, context={"request": request}).data)
+
+
+class StorefrontNotificationReadAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        notification = get_object_or_404(UserNotification, pk=pk, recipient=request.user)
+        mark_notification_read(notification)
+        return Response(UserNotificationSerializer(notification, context={"request": request}).data)
+
+
+class StorefrontNotificationReadAllAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        queryset = UserNotification.objects.filter(recipient=request.user, is_read=False)
+        if state := request.query_params.get("state"):
+            queryset = queryset.filter(lifecycle_state=state)
+        updated = mark_all_read(request.user, queryset)
+        return Response({"updated": updated})
