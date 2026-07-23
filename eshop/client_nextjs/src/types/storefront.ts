@@ -45,6 +45,7 @@ export type ProductCard = {
   price: string;
   compare_at_price: string | null;
   currency: string;
+  delivery_fee: string;
   stock_quantity: number;
   minimum_order_quantity: number;
   unit: string;
@@ -91,7 +92,7 @@ export type Paginated<T> = { count: number; page: number; page_size: number; tot
 export type StoreDetail = StoreSummary & { phone: string; email: string; address_description: string; categories: Category[] };
 
 export type CartItem = { id: number; product: ProductCard; quantity: number; line_total: string };
-export type Cart = { id: number; items: CartItem[]; subtotal: string; total_quantity: number };
+export type Cart = { id: number; items: CartItem[]; subtotal: string; delivery_fee: string; grand_total: string; total_quantity: number };
 
 export type OrderPreviewItem = { product_name: string; product_media_url: string; quantity: number };
 export type OrderListItem = {
@@ -153,4 +154,23 @@ export type StorefrontNotification = {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+};
+
+export type BrandStatus = {
+  id: number;
+  media_url: string | null;
+  media_type: "image" | "video";
+  caption: string;
+  starts_at: string;
+  expires_at: string;
+  sort_order: number;
+  updated_at: string;
+};
+
+export type SiteBranding = {
+  site_name: string;
+  logo_url: string | null;
+  logo_alt_text: string;
+  statuses: BrandStatus[];
+  updated_at: string;
 };

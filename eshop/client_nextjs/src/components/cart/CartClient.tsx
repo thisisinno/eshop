@@ -84,7 +84,8 @@ export function CartClient({ initialCart }: { initialCart: Cart }) {
         <aside className="sticky bottom-[calc(76px+env(safe-area-inset-bottom))] mt-4 border-t border-[var(--color-border)] bg-white/95 px-4 py-3 backdrop-blur md:static md:bg-white md:p-0 md:pt-4">
           <div className="space-y-2 text-sm">
             <div className="flex justify-between"><span>Subtotal</span><b>{money(cart.subtotal, cart.items[0]?.product.currency)}</b></div>
-            <div className="flex justify-between text-[var(--color-text-secondary)]"><span>Delivery</span><span>Calculated later</span></div>
+            <div className="flex justify-between"><span>Delivery</span><b>{Number(cart.delivery_fee) > 0 ? money(cart.delivery_fee, cart.items[0]?.product.currency) : "Free"}</b></div>
+            <div className="flex justify-between border-t border-[var(--color-border)] pt-2 text-base"><span>Total</span><b>{money(cart.grand_total, cart.items[0]?.product.currency)}</b></div>
           </div>
           <div className="mt-3 flex justify-end">
             <ButtonLink href="/checkout" className="h-11 rounded-full bg-[var(--color-black)] px-6 text-white hover:bg-[var(--color-primary-hover)]">Checkout</ButtonLink>

@@ -18,14 +18,17 @@ const steps = [
 export function ProductComposer() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [specs, setSpecs] = useState([{ key: "", value: "" }]);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     const form = new FormData(event.currentTarget);
-    const payload = Object.fromEntries(form.entries());
+    const payload: Record<string, unknown> = Object.fromEntries(form.entries());
     payload.price = String(payload.price || "0");
     payload.stock_quantity = String(payload.stock_quantity || "0");
     payload.minimum_order_quantity = String(payload.minimum_order_quantity || "1");
+    payload.delivery_fee = String(payload.delivery_fee || "0");
+    payload.specifications = Object.fromEntries(specs.map((item) => [item.key.trim(), item.value.trim()]).filter(([key, value]) => key && value));
     const response = await fetch("/api/storefront/catalog/products/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -51,7 +54,7 @@ export function ProductComposer() {
       </Card>
       <Card className="p-4">
         {step === 0 ? <div className="grid gap-3 sm:grid-cols-2"><L label="Trader/store ID" name="trader" type="number" required /><L label="Category ID" name="category" type="number" required /></div> : null}
-        {step === 1 ? <div className="grid gap-3"><L label="Product name" name="name" required /><L label="Short description" name="short_description" required /><textarea name="description" placeholder="Full description" className="min-h-32 rounded-lg border border-[var(--color-border-strong)] p-3 text-sm focus:border-[var(--color-text)] focus:outline-none" /><div className="grid gap-3 sm:grid-cols-3"><L label="Price" name="price" type="number" required /><L label="Compare at price" name="compare_at_price" type="number" /><L label="Stock" name="stock_quantity" type="number" required /></div><L label="Minimum order quantity" name="minimum_order_quantity" type="number" defaultValue={1} /></div> : null}
+        {step === 1 ? <div className="grid gap-3"><L label="Product name" name="name" required /><div className="grid gap-3 sm:grid-cols-3"><L label="SKU" name="sku" /><L label="Currency" name="currency" defaultValue="TZS" /><L label="Unit" name="unit" placeholder="piece, box, kg" /></div><L label="Short description" name="short_description" required /><textarea name="description" placeholder="Full description" className="min-h-32 rounded-lg border border-[var(--color-border-strong)] p-3 text-sm focus:border-[var(--color-text)] focus:outline-none" /><div className="grid gap-3 sm:grid-cols-3"><L label="Price" name="price" type="number" required /><L label="Compare at price" name="compare_at_price" type="number" /><L label="Delivery cost" name="delivery_fee" type="number" defaultValue={0} /></div><div className="grid gap-3 sm:grid-cols-2"><L label="Stock" name="stock_quantity" type="number" required /><L label="Minimum order quantity" name="minimum_order_quantity" type="number" defaultValue={1} /></div><SpecificationEditor specs={specs} setSpecs={setSpecs} /></div> : null}
         {step === 2 ? <UploadPanel title="Gallery media" helper="Upload images or video after saving the product draft." /> : null}
         {step === 3 ? <UploadPanel title="360 frames / GLB" helper="Upload spin frames or a GLB model through the media endpoint after the draft exists." /> : null}
         {step === 4 ? <div className="space-y-3"><p className="text-sm text-[var(--color-text-secondary)]">Preview uses the same storefront card/detail components after the product is saved and media is attached.</p><Button type="submit" loading={loading}>Save draft</Button></div> : null}
@@ -61,6 +64,26 @@ export function ProductComposer() {
         {step < steps.length - 1 ? <Button type="button" onClick={() => setStep((value) => Math.min(steps.length - 1, value + 1))}>Continue</Button> : null}
       </div>
     </form>
+  );
+}
+
+function SpecificationEditor({ specs, setSpecs }: { specs: { key: string; value: string }[]; setSpecs: React.Dispatch<React.SetStateAction<{ key: string; value: string }[]>> }) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-black">Specifications</h2>
+        <button type="button" className="text-sm font-bold hover:underline" onClick={() => setSpecs((current) => [...current, { key: "", value: "" }])}>+ Add specification</button>
+      </div>
+      <div className="space-y-2">
+        {specs.map((item, index) => (
+          <div key={index} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <Input aria-label="Specification name" placeholder="Brand" value={item.key} onChange={(event) => setSpecs((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, key: event.target.value } : row))} />
+            <Input aria-label="Specification value" placeholder="Apple" value={item.value} onChange={(event) => setSpecs((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} />
+            <button type="button" className="rounded-full border border-[var(--color-border-strong)] px-4 text-sm font-bold disabled:opacity-40" disabled={specs.length === 1} onClick={() => setSpecs((current) => current.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

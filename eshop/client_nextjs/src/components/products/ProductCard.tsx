@@ -6,7 +6,7 @@ import { Info } from "lucide-react";
 import { useState } from "react";
 import type { ProductCard as ProductCardType } from "@/types/storefront";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
-import { AddToCartButton, BookmarkButton } from "./ProductActions";
+import { CartAction, BookmarkButton } from "./ProductActions";
 import { IconButton } from "@/components/ui/IconButton";
 import { ProductQuickView } from "./ProductQuickView";
 
@@ -42,7 +42,7 @@ export function ProductCard({ product, variant = "discovery" }: { product: Produ
             {discount ? <span className="text-[12px] font-semibold text-[var(--color-text-secondary)]">{discount}% off</span> : null}
           </div>
           <div className="mt-auto flex min-h-11 items-center gap-1.5 border-t border-[var(--color-border)] pt-2">
-            {variant === "my-list" ? <AddToCartButton productId={product.id} productName={product.name} mode="icon" /> : null}
+            {variant === "my-list" ? <CartAction productId={product.id} productName={product.name} minimumOrderQuantity={product.minimum_order_quantity} stockQuantity={product.stock_quantity} /> : null}
             <BookmarkButton productId={product.id} initialBookmarked={product.is_bookmarked} compact={variant === "my-list"} />
             <IconButton aria-label={`More information about ${product.name}`} onClick={() => setQuickViewOpen(true)} className={variant === "my-list" ? "h-9 w-9" : undefined}>
               <Info aria-hidden className="h-4.5 w-4.5" />

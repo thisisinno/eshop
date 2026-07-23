@@ -23,11 +23,12 @@ import {
   User as UserIcon,
   X,
 } from "lucide-react";
-import type { Cart, ProductCard, StoreSummary, User } from "@/types/storefront";
+import type { Cart, ProductCard, SiteBranding, StoreSummary, User } from "@/types/storefront";
 import { ButtonLink } from "@/components/ui/Button";
 import { useCart } from "@/components/cart/CartProvider";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
+import { BrandLogo } from "./BrandLogo";
 
 const primaryNav = [
   { label: "Home", href: "/", Icon: Home },
@@ -78,10 +79,10 @@ function CartLink() {
   );
 }
 
-export function Header() {
+export function Header({ branding, user }: { branding: SiteBranding; user: User | null }) {
   return (
     <header className="fixed inset-x-0 top-0 z-40 flex h-[58px] items-center justify-between border-b border-[var(--color-border)] bg-white/95 px-4 backdrop-blur md:hidden">
-      <Link href="/" className="text-xl font-black text-[var(--color-text)]">eShop</Link>
+      <BrandLogo branding={branding} user={user} className="h-10 w-10" />
       <CartLink />
     </header>
   );
@@ -113,7 +114,7 @@ function MoreMenuButton({ user, canPost, className, labelClassName = "hidden tex
   );
 }
 
-export function LeftNav({ user, canPost }: { user: User | null; canPost: boolean }) {
+export function LeftNav({ user, canPost, branding }: { user: User | null; canPost: boolean; branding: SiteBranding }) {
   const pathname = usePathname();
   const { unreadCount } = useNotifications();
   const [expanded, setExpanded] = useState(false);
@@ -121,7 +122,9 @@ export function LeftNav({ user, canPost }: { user: User | null; canPost: boolean
   return (
     <aside className="fixed left-0 top-0 z-30 hidden h-screen bg-white md:block md:w-[78px] xl:w-[260px] 2xl:w-[275px]">
       <div className="ml-auto flex h-full w-[78px] flex-col gap-2 border-r border-[var(--color-border)] p-3 xl:w-[250px] xl:border-r-0">
-        <Link href="/" className="mb-2 flex h-12 items-center rounded-full px-3 text-2xl font-black text-[var(--color-text)] xl:w-fit">eShop</Link>
+        <div className="mb-2 flex h-12 items-center px-3">
+          <BrandLogo branding={branding} user={user} className="h-12 w-12" />
+        </div>
         {primaryNav.map(({ label, href, Icon }) => {
           const target = label === "Profile" && !user ? "/auth/sign-in" : href;
           const active = isActive(pathname, href);

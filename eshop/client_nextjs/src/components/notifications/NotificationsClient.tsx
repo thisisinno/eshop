@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bell, Bookmark, Check, Package, ShoppingBag, X } from "lucide-react";
 import type { StorefrontNotification } from "@/types/storefront";
@@ -10,9 +9,12 @@ import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { useNotifications } from "./NotificationProvider";
 
 const label = (value: string) => value.replaceAll("_", " ");
+const sortNotifications = (items: StorefrontNotification[]) => [...items].sort((a, b) => {
+  if (a.is_read !== b.is_read) return a.is_read ? 1 : -1;
+  return new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime();
+});
 
 export function NotificationsClient({ initial, tab }: { initial: StorefrontNotification[]; tab: "pending" | "completed" }) {
-  const router = useRouter();
   const { decrementUnread, refreshUnreadCount } = useNotifications();
   const [items, setItems] = useState(initial);
   const [selected, setSelected] = useState<StorefrontNotification | null>(null);
@@ -24,10 +26,9 @@ export function NotificationsClient({ initial, tab }: { initial: StorefrontNotif
       if (response.ok) {
         const updated = await response.json() as StorefrontNotification;
         setSelected(updated);
-        setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
+        setItems((current) => sortNotifications(current.map((item) => item.id === updated.id ? updated : item)));
         decrementUnread();
         void refreshUnreadCount();
-        router.refresh();
       }
     }
   }
@@ -36,7 +37,7 @@ export function NotificationsClient({ initial, tab }: { initial: StorefrontNotif
     <>
       <div className="divide-y divide-[var(--color-border)]">
         {items.map((item) => <NotificationRow key={item.id} notification={item} onOpen={() => void open(item)} />)}
-        {!items.length ? <div className="px-4 py-16 text-center"><h2 className="text-xl font-black">Nothing here yet.</h2><p className="mt-2 text-sm text-[var(--color-text-secondary)]">{tab === "pending" ? "Active order updates will appear here." : "Completed updates and action receipts will appear here."}</p></div> : null}
+        {!items.length ? <div className="px-4 py-16 text-center"><h2 className="text-xl font-black">Nothing here yet.</h2><p className="mt-2 text-sm text-[var(--color-text-secondary)]">{tab === "pending" ? "Active order updates will appear here." : "Completed order updates will appear here."}</p></div> : null}
       </div>
       <NotificationDetailDrawer notification={selected} onClose={() => setSelected(null)} />
     </>
@@ -90,7 +91,7 @@ function NotificationDetailDrawer({ notification, onClose }: { notification: Sto
           <div className="flex justify-between gap-4"><dt>State</dt><dd className="font-bold capitalize">{notification.lifecycle_state}</dd></div>
           <div className="flex justify-between gap-4"><dt>Read</dt><dd className="font-bold">{notification.is_read ? "Seen" : "Unread"}</dd></div>
           {notification.order ? <><div className="flex justify-between gap-4"><dt>Order</dt><dd className="font-bold">{notification.order.order_number}</dd></div><div className="flex justify-between gap-4"><dt>Status</dt><dd className="font-bold capitalize">{label(notification.order.status)}</dd></div><div className="flex justify-between gap-4"><dt>Payment</dt><dd className="font-bold capitalize">{label(notification.order.payment_status)}</dd></div></> : null}
-          {notification.activity ? <div className="flex justify-between gap-4"><dt>Activity</dt><dd className="font-bold capitalize">{label(notification.activity.action)}</dd></div> : null}
+          {notification.order ? <div className="flex justify-between gap-4"><dt>Updated</dt><dd className="font-bold">{new Date(notification.updated_at).toLocaleString()}</dd></div> : null}
         </dl>
         <div className="mt-6 flex flex-wrap gap-2">
           {notification.product ? <Link href={`/products/${notification.product.id}`} className="rounded-full border border-[var(--color-border-strong)] px-4 py-2 text-sm font-semibold hover:bg-[var(--color-primary-soft)]">View product</Link> : null}

@@ -4,21 +4,21 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ShoppingBag, X } from "lucide-react";
+import { X } from "lucide-react";
 import { toast } from "sonner";
 import type { Cart, ProductDetail } from "@/types/storefront";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { BookmarkButton } from "./ProductActions";
+import { BookmarkButton, CartAction } from "./ProductActions";
 import { useCart } from "@/components/cart/CartProvider";
-import { useNotifications } from "@/components/notifications/NotificationProvider";
+import { parseApiError } from "@/lib/api/errors";
+import { ShareProductButton } from "./ShareProductButton";
 
 const money = (amount: string, currency: string) => `${currency} ${Number(amount).toLocaleString()}`;
 
 export function ProductQuickView({ productId, open, onClose }: { productId: number | null; open: boolean; onClose: () => void }) {
   const router = useRouter();
   const { setCartState } = useCart();
-  const { refreshUnreadCount } = useNotifications();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [cartLoading, setCartLoading] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -68,13 +68,11 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
       return;
     }
     if (!response.ok) {
-      toast.error("Could not add to cart.");
+      toast.error(await parseApiError(response, "Could not start checkout."));
       return;
     }
     const cart = await response.json() as Cart;
     setCartState(cart);
-    toast.success("Added to cart.");
-    void refreshUnreadCount();
     router.refresh();
     if (checkout) {
       onClose();
@@ -86,6 +84,7 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
   const loading = !visibleProduct;
   const image = resolveMediaUrl(visibleProduct?.primary_media_url);
   const gallery = visibleProduct?.media.gallery.slice(0, 4) ?? [];
+  const specs = Object.entries(visibleProduct?.specifications || {}).filter(([, value]) => value !== null && value !== undefined && String(value).trim()).slice(0, 4);
 
   return (
     <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label="Product quick view">
@@ -111,10 +110,13 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
                 {visibleProduct.compare_at_price ? <p className="text-sm text-[var(--color-text-secondary)] line-through">{money(visibleProduct.compare_at_price, visibleProduct.currency)}</p> : null}
               </div>
               <p className="mt-3 text-sm font-semibold text-[var(--color-text)]">{visibleProduct.stock_quantity > 0 ? `${visibleProduct.stock_quantity} in stock` : "Out of stock"}</p>
+              <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{Number(visibleProduct.delivery_fee) > 0 ? `${money(visibleProduct.delivery_fee, visibleProduct.currency)} delivery` : "Free delivery"}</p>
               {visibleProduct.short_description ? <p className="mt-3 line-clamp-2 text-sm leading-6 text-[var(--color-text-secondary)]">{visibleProduct.short_description}</p> : null}
-              <div className="mt-5 grid grid-cols-[auto_1fr] gap-3">
+              {specs.length ? <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs text-[var(--color-text-secondary)]">{specs.map(([key, value]) => <div key={key} className="contents"><dt className="font-bold text-[var(--color-text)]">{key}</dt><dd className="truncate">{String(value)}</dd></div>)}</dl> : null}
+              <div className="mt-5 flex items-center gap-3">
                 <BookmarkButton productId={visibleProduct.id} initialBookmarked={visibleProduct.is_bookmarked} />
-                <Button loading={cartLoading} onClick={() => addToCart(false)}><ShoppingBag aria-hidden className="h-4 w-4" />Add to Cart</Button>
+                <CartAction productId={visibleProduct.id} productName={visibleProduct.name} minimumOrderQuantity={visibleProduct.minimum_order_quantity} stockQuantity={visibleProduct.stock_quantity} />
+                <ShareProductButton product={visibleProduct} compact />
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <Button loading={cartLoading} variant="secondary" onClick={() => addToCart(true)}>Checkout</Button>

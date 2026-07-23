@@ -29,7 +29,7 @@ export function Notification() {
   const unread = notifications.filter((item) => !item.is_read).length;
 
   useEffect(() => {
-    apiGet<Paginated<AdminNotification>>("/storefront/notifications/?state=pending")
+    apiGet<Paginated<AdminNotification>>("/storefront/notifications/?state=pending&audience=admin")
       .then((data) => setNotifications(data.results.filter((item) => item.order).slice(0, 6)))
       .catch(() => setNotifications([]));
   }, []);
@@ -37,7 +37,7 @@ export function Notification() {
   async function markRead(item: AdminNotification) {
     if (!item.is_read) {
       try {
-        const updated = await apiPatch<AdminNotification>(`/storefront/notifications/${item.id}/read/`, {});
+        const updated = await apiPatch<AdminNotification>(`/storefront/notifications/${item.id}/read/?audience=admin`, {});
         setNotifications((current) => current.map((next) => next.id === updated.id ? updated : next));
       } catch {}
     }

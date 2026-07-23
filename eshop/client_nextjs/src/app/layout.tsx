@@ -13,11 +13,11 @@ const geist = localFont({
 });
 
 export const metadata: Metadata = {
-  title: { default: "eShop", template: "%s | eShop" },
+  title: { default: "Storefront", template: "%s | Storefront" },
   description: "Responsive customer ecommerce storefront",
   manifest: "/manifest.webmanifest",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001"),
-  openGraph: { siteName: "eShop", type: "website" },
+  openGraph: { siteName: "Storefront", type: "website" },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#ffffff" };
