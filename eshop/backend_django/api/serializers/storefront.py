@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 
-from api.models import Cart, CartItem, Order, OrderItem, Product, ProductBookmark, ProductCategory, ProductMedia, StoreFollow, TraderProfile, UserActivityLog, UserNotification
+from api.models import BrandStatus, Cart, CartItem, Order, OrderItem, Product, ProductBookmark, ProductCategory, ProductMedia, SiteBranding, StoreFollow, TraderProfile, UserActivityLog, UserNotification
 from api.serializers.catalog import product_media_file_url
 from api.services.orders import next_order_number
 from api.utils.request_meta import request_meta_snapshot
@@ -83,7 +83,7 @@ class PublicProductCardSerializer(serializers.ModelSerializer):
         model = Product
         fields = (
             "id", "product_id", "name", "slug", "short_description", "price", "compare_at_price", "currency",
-            "stock_quantity", "minimum_order_quantity", "unit", "has_discount", "discount_percent",
+            "delivery_fee", "stock_quantity", "minimum_order_quantity", "unit", "has_discount", "discount_percent",
             "views_count", "sold_count", "primary_media_url", "store", "category", "is_bookmarked", "created_at",
         )
 
@@ -146,22 +146,89 @@ class CartItemSerializer(serializers.ModelSerializer):
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
     subtotal = serializers.SerializerMethodField()
+    delivery_fee = serializers.SerializerMethodField()
+    grand_total = serializers.SerializerMethodField()
     total_quantity = serializers.SerializerMethodField()
 
     class Meta:
         model = Cart
-        fields = ("id", "items", "subtotal", "total_quantity", "updated_at")
+        fields = ("id", "items", "subtotal", "delivery_fee", "grand_total", "total_quantity", "updated_at")
 
     def get_subtotal(self, obj):
-        return sum((item.product.price * item.quantity for item in obj.items.all()), Decimal("0.00"))
+        return cart_subtotal(obj.items.all())
+
+    def get_delivery_fee(self, obj):
+        return cart_delivery_fee(obj.items.all())
+
+    def get_grand_total(self, obj):
+        items = obj.items.all()
+        return cart_subtotal(items) + cart_delivery_fee(items)
 
     def get_total_quantity(self, obj):
         return sum(item.quantity for item in obj.items.all())
 
 
 class CartItemWriteSerializer(serializers.Serializer):
-    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.select_related("trader").all())
     quantity = serializers.IntegerField(min_value=1)
+
+    def validate(self, attrs):
+        product = attrs["product"]
+        quantity = attrs["quantity"]
+        if product.status != Product.Status.ACTIVE:
+            raise serializers.ValidationError({"product": [f"{product.name} is no longer available."]})
+        if not product.trader_id or product.trader.status != TraderProfile.Status.APPROVED:
+            raise serializers.ValidationError({"product": [f"{product.name} is no longer available."]})
+        if product.stock_quantity <= 0:
+            raise serializers.ValidationError({"quantity": [f"{product.name} is currently out of stock."]})
+        if quantity < product.minimum_order_quantity:
+            raise serializers.ValidationError({"quantity": [f"Minimum order quantity for {product.name} is {product.minimum_order_quantity}."]})
+        if product.stock_quantity < product.minimum_order_quantity:
+            raise serializers.ValidationError({"quantity": [f"{product.name} is currently unavailable."]})
+        if quantity > product.stock_quantity:
+            raise serializers.ValidationError({"quantity": [f"Only {product.stock_quantity} units are currently available."]})
+        return attrs
+
+
+def cart_subtotal(items):
+    return sum((item.product.price * item.quantity for item in items), Decimal("0.00"))
+
+
+def cart_delivery_fee(items):
+    product_ids = set()
+    total = Decimal("0.00")
+    for item in items:
+        if item.product_id in product_ids:
+            continue
+        product_ids.add(item.product_id)
+        total += item.product.delivery_fee
+    return total
+
+
+class BrandStatusPublicSerializer(serializers.ModelSerializer):
+    media_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BrandStatus
+        fields = ("id", "media_url", "media_type", "caption", "starts_at", "expires_at", "sort_order", "updated_at")
+
+    def get_media_url(self, obj):
+        return file_url(obj.media, self.context.get("request"))
+
+
+class SiteBrandingPublicSerializer(serializers.ModelSerializer):
+    logo_url = serializers.SerializerMethodField()
+    statuses = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SiteBranding
+        fields = ("site_name", "logo_url", "logo_alt_text", "statuses", "updated_at")
+
+    def get_logo_url(self, obj):
+        return file_url(obj.logo, self.context.get("request"))
+
+    def get_statuses(self, obj):
+        return BrandStatusPublicSerializer(BrandStatus.active_public(), many=True, context=self.context).data
 
 
 class NotificationOrderSummarySerializer(serializers.ModelSerializer):
@@ -221,6 +288,7 @@ class CustomerOrderCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError({"cart": f"{product.name} does not have enough stock."})
         meta = request_meta_snapshot(request)
         with transaction.atomic():
+            delivery_fee = cart_delivery_fee(items)
             order = Order.objects.create(
                 order_number=next_order_number(),
                 customer_user=request.user,
@@ -237,6 +305,7 @@ class CustomerOrderCreateSerializer(serializers.Serializer):
                 source=Order.Source.WEB_PWA,
                 status=Order.Status.REQUESTED,
                 payment_status=Order.PaymentStatus.UNPAID,
+                delivery_fee=delivery_fee,
                 requested_ip_address=meta["ip_address"],
                 requested_user_agent=meta["user_agent"],
                 requested_device=meta["device_type"],

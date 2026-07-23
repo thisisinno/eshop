@@ -1,12 +1,14 @@
 from django.db.models import F, Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import serializers, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.models import Product, ProductCategory, ProductMedia
+from api.models import BrandStatus, Product, ProductCategory, ProductMedia, SiteBranding
 from api.permissions import HasModulePermission
+from api.serializers.catalog import BrandStatusSerializer, SiteBrandingSerializer
 from api.serializers import ProductCategorySerializer, ProductDetailSerializer, ProductListSerializer, ProductMediaSerializer, ProductWriteSerializer
 from api.views.logs import record_admin_activity
 
@@ -204,3 +206,70 @@ class ProductMediaPrimaryAPIView(PermissionedCatalogAPIView):
         media.save()
         record_admin_activity(request, "catalog", "media_primary", media, status.HTTP_200_OK)
         return Response(ProductMediaSerializer(media, context={"request": request}).data)
+
+
+class SiteBrandingAPIView(PermissionedCatalogAPIView):
+    permission_map = {"GET": "api.view_sitebranding", "PATCH": "api.change_sitebranding", "PUT": "api.change_sitebranding"}
+
+    def get(self, request):
+        return Response(SiteBrandingSerializer(SiteBranding.get_current(), context={"request": request}).data)
+
+    def patch(self, request):
+        branding = SiteBranding.get_current()
+        serializer = SiteBrandingSerializer(branding, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        branding = serializer.save(updated_by=request.user)
+        record_admin_activity(request, "site", "branding_update", branding, status.HTTP_200_OK)
+        return Response(SiteBrandingSerializer(branding, context={"request": request}).data)
+
+    def put(self, request):
+        return self.patch(request)
+
+
+class BrandStatusesAPIView(PermissionedCatalogAPIView):
+    permission_map = {"GET": "api.view_brandstatus", "POST": "api.add_brandstatus"}
+
+    def get(self, request):
+        queryset = BrandStatus.objects.all()
+        bucket = request.query_params.get("bucket")
+        if bucket == "active":
+            queryset = BrandStatus.active_public()
+        elif bucket == "scheduled":
+            queryset = queryset.filter(starts_at__gt=timezone.now()).order_by("starts_at", "id")
+        elif bucket == "expired":
+            queryset = queryset.filter(expires_at__lte=timezone.now()).order_by("-expires_at", "-id")
+        return Response(BrandStatusSerializer(queryset, many=True, context={"request": request}).data)
+
+    def post(self, request):
+        serializer = BrandStatusSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        brand_status = serializer.save(created_by=request.user)
+        record_admin_activity(request, "site", "status_create", brand_status, status.HTTP_201_CREATED)
+        return Response(BrandStatusSerializer(brand_status, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+
+class BrandStatusDetailAPIView(PermissionedCatalogAPIView):
+    permission_map = {"GET": "api.view_brandstatus", "PATCH": "api.change_brandstatus", "PUT": "api.change_brandstatus", "DELETE": "api.delete_brandstatus"}
+
+    def get_object(self, pk):
+        return get_object_or_404(BrandStatus, pk=pk)
+
+    def get(self, request, pk):
+        return Response(BrandStatusSerializer(self.get_object(pk), context={"request": request}).data)
+
+    def patch(self, request, pk):
+        brand_status = self.get_object(pk)
+        serializer = BrandStatusSerializer(brand_status, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        brand_status = serializer.save()
+        record_admin_activity(request, "site", "status_update", brand_status, status.HTTP_200_OK)
+        return Response(BrandStatusSerializer(brand_status, context={"request": request}).data)
+
+    def put(self, request, pk):
+        return self.patch(request, pk)
+
+    def delete(self, request, pk):
+        brand_status = self.get_object(pk)
+        record_admin_activity(request, "site", "status_delete", brand_status, status.HTTP_204_NO_CONTENT)
+        brand_status.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

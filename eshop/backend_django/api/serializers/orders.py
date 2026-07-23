@@ -12,7 +12,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         fields = (
             "id", "order", "product", "product_name", "product_media_url", "product_id_snapshot",
             "product_name_snapshot", "product_sku_snapshot", "trader", "trader_name_snapshot",
-            "branch", "branch_name_snapshot", "quantity", "unit_price", "line_discount",
+            "branch", "branch_name_snapshot", "quantity", "unit_price", "delivery_fee_snapshot", "line_discount",
             "line_total", "note", "created_at", "updated_at",
         )
         read_only_fields = ("order", "line_total", "created_at", "updated_at")
@@ -27,7 +27,7 @@ class OrderItemWriteSerializer(serializers.ModelSerializer):
         fields = (
             "id", "product", "product_media_url", "product_id_snapshot", "product_name_snapshot",
             "product_sku_snapshot", "trader", "trader_name_snapshot", "branch", "branch_name_snapshot",
-            "quantity", "unit_price", "line_discount", "note",
+            "quantity", "unit_price", "delivery_fee_snapshot", "line_discount", "note",
         )
         extra_kwargs = {
             "unit_price": {"required": False},
@@ -38,6 +38,8 @@ class OrderItemWriteSerializer(serializers.ModelSerializer):
         product = attrs.get("product")
         if product and attrs.get("unit_price") is None:
             attrs["unit_price"] = product.price
+        if product and attrs.get("delivery_fee_snapshot") is None:
+            attrs["delivery_fee_snapshot"] = product.delivery_fee
         if not product and not attrs.get("product_name_snapshot"):
             raise serializers.ValidationError({"product_name_snapshot": "Provide a product or product name snapshot."})
         if attrs.get("quantity", 1) < 1:

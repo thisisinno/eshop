@@ -8,12 +8,12 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.models import Cart, CartItem, Product, ProductBookmark, ProductCategory, StoreFollow, TraderProfile, UserActivityLog, UserNotification
+from api.models import Cart, CartItem, Product, ProductBookmark, ProductCategory, SiteBranding, StoreFollow, TraderProfile, UserActivityLog, UserNotification
 from api.serializers.orders import OrderDetailSerializer, OrderListSerializer
 from api.serializers.storefront import (
     CartItemWriteSerializer, CartSerializer, CustomerOrderCreateSerializer, PublicCategorySerializer,
     PublicProductCardSerializer, PublicProductDetailSerializer, PublicStoreDetailSerializer, PublicStoreSummarySerializer,
-    UserNotificationSerializer,
+    SiteBrandingPublicSerializer, UserNotificationSerializer,
 )
 from api.services.notifications import create_activity_notification, mark_all_read, mark_notification_read, notify_admin_of_new_order, sync_order_notification, visible_notifications_for
 from api.services.recommendations import build_home_shelves, public_products_queryset
@@ -78,6 +78,24 @@ def record_activity(request, action, product=None, trader=None, metadata=None):
     )
     create_activity_notification(log)
     return log
+
+
+SHARE_CHANNELS = {"native", "whatsapp", "facebook", "instagram", "email", "copy", "other"}
+
+
+def validate_cart_quantity(product, quantity):
+    if product.status != Product.Status.ACTIVE:
+        raise ValidationError({"product": [f"{product.name} is no longer available."]})
+    if not product.trader_id or product.trader.status != TraderProfile.Status.APPROVED:
+        raise ValidationError({"product": [f"{product.name} is no longer available."]})
+    if product.stock_quantity <= 0:
+        raise ValidationError({"quantity": [f"{product.name} is currently out of stock."]})
+    if quantity < product.minimum_order_quantity:
+        raise ValidationError({"quantity": [f"Minimum order quantity for {product.name} is {product.minimum_order_quantity}."]})
+    if product.stock_quantity < product.minimum_order_quantity:
+        raise ValidationError({"quantity": [f"{product.name} is currently unavailable."]})
+    if quantity > product.stock_quantity:
+        raise ValidationError({"quantity": [f"Only {product.stock_quantity} units are currently available."]})
 
 
 class StorefrontHomeAPIView(APIView):
@@ -163,6 +181,25 @@ class StorefrontProductDetailAPIView(APIView):
         Product.objects.filter(pk=product.pk).update(views_count=F("views_count") + 1)
         record_activity(request, UserActivityLog.Action.PRODUCT_OPEN, product=product, trader=product.trader)
         return Response(PublicProductDetailSerializer(product, context={"request": request}).data)
+
+
+class StorefrontProductShareAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk):
+        product = get_object_or_404(public_products_queryset(), pk=pk)
+        channel = str(request.data.get("channel") or "other").lower()
+        if channel not in SHARE_CHANNELS:
+            channel = "other"
+        record_activity(request, UserActivityLog.Action.SHARE, product=product, trader=product.trader, metadata={"channel": channel})
+        return Response({"recorded": True})
+
+
+class StorefrontBrandingAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(SiteBrandingPublicSerializer(SiteBranding.get_current(), context={"request": request}).data)
 
 
 class StorefrontStoresAPIView(APIView):
@@ -254,12 +291,15 @@ class CartItemsAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         product = get_object_or_404(public_products_queryset(), pk=serializer.validated_data["product"].pk)
         quantity = serializer.validated_data["quantity"]
+        validate_cart_quantity(product, quantity)
         try:
             item, created = CartItem.objects.get_or_create(cart=get_cart(request.user), product=product, defaults={"quantity": quantity})
         except DjangoValidationError as exc:
             raise ValidationError(exc.message_dict if hasattr(exc, "message_dict") else exc.messages) from exc
         if not created:
-            item.quantity += quantity
+            new_quantity = item.quantity + quantity
+            validate_cart_quantity(product, new_quantity)
+            item.quantity = new_quantity
             try:
                 item.save()
             except DjangoValidationError as exc:
@@ -274,6 +314,7 @@ class CartItemDetailAPIView(APIView):
     def patch(self, request, item_id):
         item = get_object_or_404(CartItem.objects.select_related("cart", "product"), pk=item_id, cart__user=request.user)
         quantity = int(request.data.get("quantity", item.quantity))
+        validate_cart_quantity(item.product, quantity)
         item.quantity = quantity
         try:
             item.save()
@@ -327,7 +368,7 @@ class StorefrontNotificationsAPIView(APIView):
             return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
         queryset = visible_notifications_for(request.user, audience).select_related(
             "order", "product__trader", "product__category", "trader", "activity_log__product", "activity_log__trader",
-        ).prefetch_related("product__media")
+        ).prefetch_related("product__media").order_by("is_read", "-updated_at", "-created_at", "-id")
         if state := request.query_params.get("state"):
             queryset = queryset.filter(lifecycle_state=state)
         paginator = StorefrontPagination()

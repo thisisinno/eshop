@@ -120,6 +120,7 @@ class OrderItem(models.Model):
     branch_name_snapshot = models.CharField(max_length=255, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     unit_price = models.DecimalField(max_digits=14, decimal_places=2)
+    delivery_fee_snapshot = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     line_discount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     line_total = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
     note = models.CharField(max_length=255, blank=True)
@@ -148,6 +149,8 @@ class OrderItem(models.Model):
         self.branch_name_snapshot = self.product.branch.name if self.product.branch else ""
         if not self.unit_price:
             self.unit_price = self.product.price
+        if not self.delivery_fee_snapshot:
+            self.delivery_fee_snapshot = self.product.delivery_fee
         media = self.product.primary_media
         if media and media.file:
             try:

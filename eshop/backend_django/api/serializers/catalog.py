@@ -1,10 +1,11 @@
 import os
+import json
 from urllib.parse import urljoin
 
 from django.conf import settings
 from rest_framework import serializers
 
-from api.models import Product, ProductCategory, ProductMedia, TraderBranch
+from api.models import BrandStatus, Product, ProductCategory, ProductMedia, SiteBranding, TraderBranch
 
 
 def product_media_file_url(file, request=None):
@@ -130,7 +131,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         fields = (
             "id", "product_id", "trader", "trader_name", "branch", "branch_name", "category", "category_name",
             "name", "slug", "sku", "price", "compare_at_price", "currency", "stock_quantity", "position", "status",
-            "is_featured", "has_discount", "discount_amount", "discount_percent", "primary_media_url", "media_count", "created_at", "updated_at",
+            "delivery_fee", "is_featured", "has_discount", "discount_amount", "discount_percent", "primary_media_url", "media_count", "created_at", "updated_at",
         )
 
     def get_primary_media_url(self, obj):
@@ -168,7 +169,7 @@ class ProductWriteSerializer(serializers.ModelSerializer):
         model = Product
         fields = (
             "id", "trader", "branch", "category", "name", "short_description", "description", "sku", "price",
-            "compare_at_price", "cost_price", "currency", "stock_quantity", "minimum_order_quantity", "unit", "status",
+            "compare_at_price", "cost_price", "currency", "delivery_fee", "stock_quantity", "minimum_order_quantity", "unit", "status",
             "specifications", "view_360_enabled", "view_360_mode", "is_featured", "is_discountable", "position", "related_products", "product_id", "slug", "created_by", "updated_by", "created_at", "updated_at",
         )
         read_only_fields = ("id", "product_id", "slug", "created_by", "updated_by", "created_at", "updated_at")
@@ -179,6 +180,7 @@ class ProductWriteSerializer(serializers.ModelSerializer):
             "currency": {"required": False},
             "unit": {"required": False, "allow_blank": True},
             "stock_quantity": {"required": False},
+            "delivery_fee": {"required": False},
             "minimum_order_quantity": {"required": False},
             "specifications": {"required": False},
             "view_360_enabled": {"required": False},
@@ -190,8 +192,45 @@ class ProductWriteSerializer(serializers.ModelSerializer):
         branch = attrs.get("branch", getattr(self.instance, "branch", None))
         price = attrs.get("price", getattr(self.instance, "price", None))
         compare_at_price = attrs.get("compare_at_price", getattr(self.instance, "compare_at_price", None))
+        delivery_fee = attrs.get("delivery_fee", getattr(self.instance, "delivery_fee", None))
+        specifications = attrs.get("specifications", getattr(self.instance, "specifications", None))
+        if isinstance(specifications, str):
+            try:
+                specifications = json.loads(specifications or "{}")
+            except json.JSONDecodeError as exc:
+                raise serializers.ValidationError({"specifications": "Specifications must be valid JSON."}) from exc
+            attrs["specifications"] = specifications
+        if specifications is not None and not isinstance(specifications, dict):
+            raise serializers.ValidationError({"specifications": "Specifications must be an object."})
         if branch and trader and branch.trader_id != trader.id:
             raise serializers.ValidationError({"branch": "The selected branch does not belong to the selected trader."})
         if compare_at_price is not None and price is not None and compare_at_price <= price:
             raise serializers.ValidationError({"compare_at_price": "Compare-at price must be greater than the current price."})
+        if delivery_fee is not None and delivery_fee < 0:
+            raise serializers.ValidationError({"delivery_fee": "Delivery fee cannot be negative."})
         return attrs
+
+
+class BrandStatusSerializer(serializers.ModelSerializer):
+    media_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BrandStatus
+        fields = ("id", "media", "media_url", "media_type", "caption", "is_active", "starts_at", "expires_at", "sort_order", "created_by", "created_at", "updated_at")
+        read_only_fields = ("id", "media_url", "created_by", "created_at", "updated_at")
+        extra_kwargs = {"media_type": {"required": False}, "expires_at": {"required": False}}
+
+    def get_media_url(self, obj):
+        return product_media_file_url(obj.media, self.context.get("request"))
+
+
+class SiteBrandingSerializer(serializers.ModelSerializer):
+    logo_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SiteBranding
+        fields = ("site_name", "logo", "logo_url", "logo_alt_text", "updated_by", "created_at", "updated_at")
+        read_only_fields = ("logo_url", "updated_by", "created_at", "updated_at")
+
+    def get_logo_url(self, obj):
+        return product_media_file_url(obj.logo, self.context.get("request"))

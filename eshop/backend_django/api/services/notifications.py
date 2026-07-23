@@ -8,18 +8,10 @@ from api.models import Order, UserActivityLog, UserNotification
 
 FINAL_ORDER_STATUSES = {Order.Status.DELIVERED, Order.Status.CANCELLED, Order.Status.REJECTED}
 CUSTOMER_VISIBLE_TYPES = {
-    UserNotification.NotificationType.MY_LIST,
-    UserNotification.NotificationType.CART,
     UserNotification.NotificationType.ORDER,
     UserNotification.NotificationType.SYSTEM,
 }
-ACTIVITY_NOTIFICATION_ACTIONS = {
-    UserActivityLog.Action.BOOKMARK,
-    UserActivityLog.Action.UNBOOKMARK,
-    UserActivityLog.Action.ADD_TO_CART,
-    UserActivityLog.Action.REMOVE_FROM_CART,
-    UserActivityLog.Action.CART_QUANTITY_CHANGE,
-}
+ACTIVITY_NOTIFICATION_ACTIONS = set()
 PASSIVE_ACTIONS = {
     UserActivityLog.Action.PRODUCT_VIEW,
     UserActivityLog.Action.PRODUCT_OPEN,
@@ -139,6 +131,10 @@ def notify_admin_of_new_order(order):
 
 
 def create_activity_notification(log):
+    # Visible customer notifications are reserved for important order/admin updates.
+    # Ordinary product, My List, cart, share, store follow, search, and view events
+    # remain available through UserActivityLog only.
+    return None
     if not log.user_id or log.action in PASSIVE_ACTIONS or log.action not in ACTIVITY_NOTIFICATION_ACTIONS:
         return None
     template = ACTION_COPY.get(log.action)
