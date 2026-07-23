@@ -175,7 +175,13 @@ def record_order_activity(request, action, order, status_code=None, metadata=Non
     try:
         user = getattr(request, "user", None)
         actor = user if getattr(user, "is_authenticated", False) else None
-        meta = request_meta_snapshot(request)
+        meta = request_meta_snapshot(request) if hasattr(request, "META") else {
+            "ip_address": None,
+            "user_agent": "",
+            "device_type": "",
+            "browser": "",
+            "os": "",
+        }
         AdminActivityLog.objects.create(
             actor=actor,
             actor_username=actor.get_username() if actor else "",

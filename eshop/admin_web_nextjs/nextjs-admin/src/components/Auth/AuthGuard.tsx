@@ -24,7 +24,14 @@ export function AuthGuard({ children }: PropsWithChildren) {
     }
 
     getCurrentUser()
-      .then(() => setIsChecking(false))
+      .then((user) => {
+        if (!user.is_staff && !user.is_superuser) {
+          clearAuthStorage();
+          router.replace(signInUrl);
+          return;
+        }
+        setIsChecking(false);
+      })
       .catch(() => {
         clearAuthStorage();
         router.replace(signInUrl);

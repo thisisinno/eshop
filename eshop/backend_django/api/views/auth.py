@@ -22,15 +22,15 @@ class SignupAPIView(APIView):
     def post(self, request):
         serializer = SignupSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        is_first_user = not User.objects.exists()
         user = User.objects.create_user(
             username=serializer.validated_data["username"],
             email=serializer.validated_data["email"],
             first_name=serializer.validated_data.get("first_name", ""),
             last_name=serializer.validated_data.get("last_name", ""),
             password=serializer.validated_data["password"],
-            is_staff=True,
-            is_superuser=is_first_user,
+            is_staff=False,
+            is_superuser=False,
+            is_active=True,
         )
         return Response(auth_response(user), status=status.HTTP_201_CREATED)
 

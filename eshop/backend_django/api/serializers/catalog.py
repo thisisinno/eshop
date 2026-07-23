@@ -48,7 +48,7 @@ class ProductMediaSerializer(serializers.ModelSerializer):
         model = ProductMedia
         fields = (
             "id", "product", "media_type", "file", "file_url", "file_key", "storage_key", "file_name", "file_extension", "is_image", "is_clip",
-            "title", "alt_text", "is_primary", "sort_order", "created_by", "created_at",
+            "title", "alt_text", "caption", "is_primary", "sort_order", "frame_index", "edit_metadata", "mime_type", "file_size", "created_by", "created_at",
         )
         read_only_fields = ("product", "file_key", "storage_key", "created_by", "created_at")
 
@@ -64,17 +64,21 @@ class ProductMediaSerializer(serializers.ModelSerializer):
             detected_media_type = ProductMedia.MediaType.IMAGE
         elif extension in ProductMedia.CLIP_EXTENSIONS:
             detected_media_type = ProductMedia.MediaType.CLIP
+        elif extension in ProductMedia.MODEL_EXTENSIONS:
+            detected_media_type = ProductMedia.MediaType.MODEL_3D
         else:
-            allowed = sorted(ProductMedia.IMAGE_EXTENSIONS | ProductMedia.CLIP_EXTENSIONS)
+            allowed = sorted(ProductMedia.IMAGE_EXTENSIONS | ProductMedia.CLIP_EXTENSIONS | ProductMedia.MODEL_EXTENSIONS)
             raise serializers.ValidationError({
                 "file": f"{filename}: unsupported format. Allowed: {', '.join(allowed)}."
             })
 
-        if media_type and media_type != detected_media_type:
+        image_like = {ProductMedia.MediaType.IMAGE, ProductMedia.MediaType.POSTER, ProductMedia.MediaType.SPIN_FRAME}
+        is_valid_image_alias = detected_media_type == ProductMedia.MediaType.IMAGE and media_type in image_like
+        if media_type and media_type != detected_media_type and not is_valid_image_alias:
             raise serializers.ValidationError({
                 "media_type": f"{filename}: media_type must be {detected_media_type} for {extension} files."
             })
-        attrs["media_type"] = detected_media_type
+        attrs["media_type"] = media_type or detected_media_type
         return attrs
 
     def get_file_url(self, obj):
@@ -93,7 +97,7 @@ class ProductMediaSerializer(serializers.ModelSerializer):
         return obj.file.name.rsplit(".", 1)[-1].lower() if obj.file and "." in obj.file.name else ""
 
     def get_is_image(self, obj):
-        return obj.media_type == ProductMedia.MediaType.IMAGE
+        return obj.media_type in (ProductMedia.MediaType.IMAGE, ProductMedia.MediaType.POSTER, ProductMedia.MediaType.SPIN_FRAME)
 
     def get_is_clip(self, obj):
         return obj.media_type == ProductMedia.MediaType.CLIP
@@ -146,7 +150,7 @@ class ProductDetailSerializer(ProductListSerializer):
     class Meta(ProductListSerializer.Meta):
         fields = ProductListSerializer.Meta.fields + (
             "short_description", "description", "cost_price", "minimum_order_quantity", "unit", "is_discountable",
-            "views_count", "sold_count", "media", "related_products", "created_by", "created_by_name", "updated_by", "updated_by_name",
+            "specifications", "view_360_enabled", "view_360_mode", "views_count", "sold_count", "media", "related_products", "created_by", "created_by_name", "updated_by", "updated_by_name",
         )
 
     def get_created_by_name(self, obj):
@@ -158,15 +162,28 @@ class ProductDetailSerializer(ProductListSerializer):
 
 class ProductWriteSerializer(serializers.ModelSerializer):
     related_products = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), many=True, required=False)
+    sku = serializers.CharField(required=False, allow_blank=True, default="")
 
     class Meta:
         model = Product
         fields = (
             "id", "trader", "branch", "category", "name", "short_description", "description", "sku", "price",
             "compare_at_price", "cost_price", "currency", "stock_quantity", "minimum_order_quantity", "unit", "status",
-            "is_featured", "is_discountable", "position", "related_products", "product_id", "slug", "created_by", "updated_by", "created_at", "updated_at",
+            "specifications", "view_360_enabled", "view_360_mode", "is_featured", "is_discountable", "position", "related_products", "product_id", "slug", "created_by", "updated_by", "created_at", "updated_at",
         )
         read_only_fields = ("id", "product_id", "slug", "created_by", "updated_by", "created_at", "updated_at")
+        extra_kwargs = {
+            "sku": {"required": False, "allow_blank": True},
+            "short_description": {"required": False, "allow_blank": True},
+            "description": {"required": False, "allow_blank": True},
+            "currency": {"required": False},
+            "unit": {"required": False, "allow_blank": True},
+            "stock_quantity": {"required": False},
+            "minimum_order_quantity": {"required": False},
+            "specifications": {"required": False},
+            "view_360_enabled": {"required": False},
+            "view_360_mode": {"required": False},
+        }
 
     def validate(self, attrs):
         trader = attrs.get("trader", getattr(self.instance, "trader", None))

@@ -17,7 +17,13 @@ from .registration import TraderBranch, TraderProfile
 def product_media_upload_path(instance, filename):
     """Keep S3 objects grouped by product and use non-guessable filenames."""
     extension = os.path.splitext(filename)[1].lower()
-    folder = "images" if instance.media_type == ProductMedia.MediaType.IMAGE else "clips"
+    folder = {
+        ProductMedia.MediaType.IMAGE: "images",
+        ProductMedia.MediaType.CLIP: "clips",
+        ProductMedia.MediaType.SPIN_FRAME: "360-frames",
+        ProductMedia.MediaType.MODEL_3D: "models",
+        ProductMedia.MediaType.POSTER: "posters",
+    }.get(instance.media_type, "media")
     safe_product_id = slugify(instance.product.product_id.replace("#", "")) or str(instance.product_id)
     trader_part = f"trader-{instance.product.trader_id}"
     return f"products/{trader_part}/{safe_product_id}/{folder}/{uuid.uuid4().hex}{extension}"
@@ -28,12 +34,16 @@ class ProductCategory(models.Model):
     slug = models.SlugField(max_length=170, unique=True, blank=True)
     parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="children")
     description = models.TextField(blank=True)
+    icon = models.CharField(max_length=120, blank=True)
+    image = models.ImageField(upload_to="categories/images/", null=True, blank=True)
+    display_order = models.PositiveIntegerField(default=0)
+    is_featured = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ("name",)
+        ordering = ("display_order", "name")
 
     def save(self, *args, **kwargs):
         base_slug = slugify(self.name) or "category"
@@ -57,6 +67,10 @@ class Product(models.Model):
         OUT_OF_STOCK = "out_of_stock", "Out of stock"
         ARCHIVED = "archived", "Archived"
 
+    class Viewer360Mode(models.TextChoices):
+        SPIN = "spin", "360 image spin"
+        MODEL = "model", "3D model"
+
     product_id = models.CharField(max_length=30, unique=True, editable=False)
     trader = models.ForeignKey(TraderProfile, on_delete=models.CASCADE, related_name="products")
     branch = models.ForeignKey(TraderBranch, null=True, blank=True, on_delete=models.SET_NULL, related_name="products")
@@ -73,6 +87,9 @@ class Product(models.Model):
     stock_quantity = models.PositiveIntegerField(default=0)
     minimum_order_quantity = models.PositiveIntegerField(default=1)
     unit = models.CharField(max_length=50, blank=True)
+    specifications = models.JSONField(default=dict, blank=True)
+    view_360_enabled = models.BooleanField(default=True)
+    view_360_mode = models.CharField(max_length=20, choices=Viewer360Mode.choices, default=Viewer360Mode.SPIN)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     is_featured = models.BooleanField(default=False)
     is_discountable = models.BooleanField(default=True)
@@ -107,6 +124,14 @@ class Product(models.Model):
             errors["compare_at_price"] = "Compare-at price must be greater than the current price."
         if self.branch_id and self.trader_id and self.branch.trader_id != self.trader_id:
             errors["branch"] = "The selected branch does not belong to the selected trader."
+        if self.specifications is not None and not isinstance(self.specifications, dict):
+            errors["specifications"] = "Specifications must be an object."
+        if self.status == self.Status.ACTIVE and self.view_360_enabled and self.pk:
+            media = self.media.all()
+            if self.view_360_mode == self.Viewer360Mode.SPIN and media.filter(media_type=ProductMedia.MediaType.SPIN_FRAME).count() < ProductMedia.MIN_SPIN_FRAME_COUNT:
+                errors["view_360_mode"] = f"Active products require at least {ProductMedia.MIN_SPIN_FRAME_COUNT} ordered 360 frames."
+            if self.view_360_mode == self.Viewer360Mode.MODEL and not media.filter(media_type=ProductMedia.MediaType.MODEL_3D).exists():
+                errors["view_360_mode"] = "Active products require a GLB model when 3D model mode is selected."
         if errors:
             raise ValidationError(errors)
 
@@ -162,17 +187,30 @@ class ProductMedia(models.Model):
     class MediaType(models.TextChoices):
         IMAGE = "image", "Image"
         CLIP = "clip", "Clip"
+        SPIN_FRAME = "spin_frame", "360 frame"
+        MODEL_3D = "model_3d", "3D model"
+        POSTER = "poster", "Poster image"
 
     IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
     CLIP_EXTENSIONS = {".mp4", ".mov", ".webm"}
+    MODEL_EXTENSIONS = {".glb"}
+    MAX_IMAGE_BYTES = 12 * 1024 * 1024
+    MAX_CLIP_BYTES = 80 * 1024 * 1024
+    MAX_MODEL_BYTES = 120 * 1024 * 1024
+    MIN_SPIN_FRAME_COUNT = 12
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="media")
-    media_type = models.CharField(max_length=10, choices=MediaType.choices)
+    media_type = models.CharField(max_length=20, choices=MediaType.choices)
     file = models.FileField(upload_to=product_media_upload_path)
     title = models.CharField(max_length=255, blank=True)
     alt_text = models.CharField(max_length=255, blank=True)
+    caption = models.CharField(max_length=500, blank=True)
     is_primary = models.BooleanField(default=False)
     sort_order = models.PositiveIntegerField(default=0)
+    frame_index = models.PositiveIntegerField(null=True, blank=True)
+    edit_metadata = models.JSONField(default=dict, blank=True)
+    mime_type = models.CharField(max_length=120, blank=True)
+    file_size = models.PositiveBigIntegerField(null=True, blank=True)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="created_product_media")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -182,12 +220,36 @@ class ProductMedia(models.Model):
 
     def clean(self):
         extension = os.path.splitext(self.file.name)[1].lower()
-        valid = self.IMAGE_EXTENSIONS if self.media_type == self.MediaType.IMAGE else self.CLIP_EXTENSIONS
+        extension_map = {
+            self.MediaType.IMAGE: self.IMAGE_EXTENSIONS,
+            self.MediaType.POSTER: self.IMAGE_EXTENSIONS,
+            self.MediaType.SPIN_FRAME: self.IMAGE_EXTENSIONS,
+            self.MediaType.CLIP: self.CLIP_EXTENSIONS,
+            self.MediaType.MODEL_3D: self.MODEL_EXTENSIONS,
+        }
+        valid = extension_map.get(self.media_type, set())
         if extension not in valid:
             raise ValidationError({"file": f"Unsupported {self.media_type} format. Allowed: {', '.join(sorted(valid))}."})
+        size = getattr(self.file, "size", None)
+        if size:
+            limits = {
+                self.MediaType.IMAGE: self.MAX_IMAGE_BYTES,
+                self.MediaType.POSTER: self.MAX_IMAGE_BYTES,
+                self.MediaType.SPIN_FRAME: self.MAX_IMAGE_BYTES,
+                self.MediaType.CLIP: self.MAX_CLIP_BYTES,
+                self.MediaType.MODEL_3D: self.MAX_MODEL_BYTES,
+            }
+            limit = limits.get(self.media_type)
+            if limit and size > limit:
+                raise ValidationError({"file": f"File is too large. Maximum size is {limit // (1024 * 1024)}MB."})
+        if self.media_type == self.MediaType.SPIN_FRAME and self.frame_index is None:
+            self.frame_index = self.sort_order
 
     def save(self, *args, **kwargs):
         self.clean()
+        if self.file:
+            self.file_size = getattr(self.file, "size", self.file_size)
+            self.mime_type = getattr(self.file, "content_type", self.mime_type) or self.mime_type
         with transaction.atomic():
             if self.is_primary:
                 ProductMedia.objects.filter(product=self.product, is_primary=True).exclude(pk=self.pk).update(is_primary=False)

@@ -31,6 +31,8 @@ class UserActivityLog(models.Model):
         FILTER = "filter", "Filter"
         CATEGORY_OPEN = "category_open", "Category open"
         TRADER_OPEN = "trader_open", "Trader open"
+        STORE_FOLLOW = "store_follow", "Store follow"
+        STORE_UNFOLLOW = "store_unfollow", "Store unfollow"
         ORDER_REQUEST = "order_request", "Order request"
         ORDER_SUBMIT = "order_submit", "Order submit"
 
