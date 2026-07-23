@@ -218,6 +218,19 @@ class ProductBookmarkAPIView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class ProductBookmarksAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        queryset = annotate_products(
+            public_products_queryset().filter(bookmarks__user=request.user).order_by("-bookmarks__created_at"),
+            request,
+        )
+        paginator = StorefrontPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        return paginator.get_paginated_response(PublicProductCardSerializer(page, many=True, context={"request": request}).data)
+
+
 def get_cart(user):
     return Cart.objects.prefetch_related("items__product__trader", "items__product__category", "items__product__media").get_or_create(user=user)[0]
 

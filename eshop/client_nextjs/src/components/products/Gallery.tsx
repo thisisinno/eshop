@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useMemo, useState } from "react";
+import { Box, Images, Maximize2, Rotate3D } from "lucide-react";
 import type { ProductMedia, Viewer360 } from "@/types/storefront";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { Viewer360Panel } from "@/components/viewer-360/Viewer360Panel";
@@ -13,17 +14,19 @@ export function Gallery({ gallery, videos, viewer }: { gallery: ProductMedia[]; 
   const selectedUrl = resolveMediaUrl(selected?.url);
   return (
     <section>
-      <div className="mb-3 grid grid-cols-2 rounded-lg bg-white p-1 text-sm font-bold">
-        <button onClick={() => setMode("gallery")} className={`rounded-md py-2 ${mode === "gallery" ? "bg-[#5b2cff] text-white" : ""}`}>Gallery</button>
-        <button onClick={() => setMode("360")} className={`rounded-md py-2 ${mode === "360" ? "bg-[#5b2cff] text-white" : ""}`}>360 View</button>
+      <div className="mb-3 flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-white p-1 text-sm font-bold shadow-sm">
+        <button onClick={() => setMode("gallery")} className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md transition ${mode === "gallery" ? "bg-[var(--color-primary)] text-white" : "hover:bg-slate-100"}`}><Images aria-hidden className="h-4 w-4" />Gallery</button>
+        <button onClick={() => setMode("360")} className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md transition ${mode === "360" ? "bg-[var(--color-primary)] text-white" : "hover:bg-slate-100"}`}><Rotate3D aria-hidden className="h-4 w-4" />360 View</button>
       </div>
-      <div className="relative aspect-square overflow-hidden rounded-lg bg-white">
-        {mode === "360" ? <Viewer360Panel viewer={viewer} /> : selected?.media_type === "clip" && selectedUrl ? <video src={selectedUrl} controls className="h-full w-full object-contain" /> : selectedUrl ? <Image src={selectedUrl} alt={selected?.alt_text || ""} fill sizes="(max-width: 900px) 100vw, 700px" className="object-contain" /> : <div className="grid h-full place-items-center text-black/50">No gallery media</div>}
+      <div className="relative aspect-square overflow-hidden rounded-lg border border-[var(--color-border)] bg-white shadow-sm">
+        {mode === "360" ? <Viewer360Panel viewer={viewer} /> : selected?.media_type === "clip" && selectedUrl ? <video src={selectedUrl} controls className="h-full w-full object-contain" /> : selectedUrl ? <Image src={selectedUrl} alt={selected?.alt_text || selected?.title || "Product media"} fill sizes="(max-width: 900px) 100vw, 700px" className="object-contain" /> : <div className="grid h-full place-items-center text-[var(--color-text-secondary)]">No gallery media</div>}
+        <button aria-label="Open media fullscreen" className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full border border-[var(--color-border)] bg-white/90 text-[var(--color-text)] shadow-sm"><Maximize2 aria-hidden className="h-4 w-4" /></button>
       </div>
       <div className="mt-3 flex gap-2 overflow-x-auto pb-2">
         {media.map((item) => {
           const url = resolveMediaUrl(item.url);
-          return <button key={item.id} onClick={() => { setSelected(item); setMode("gallery"); }} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-black/10 bg-white">{url && item.media_type !== "clip" ? <Image src={url} alt={item.alt_text || ""} fill sizes="64px" className="object-cover" /> : <span className="grid h-full place-items-center text-xs">Video</span>}</button>;
+          const active = selected?.id === item.id && mode === "gallery";
+          return <button key={item.id} aria-label={`Select ${item.title || item.media_type}`} onClick={() => { setSelected(item); setMode("gallery"); }} className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-md border bg-white transition ${active ? "border-[var(--color-primary)] ring-2 ring-blue-100" : "border-[var(--color-border)]"}`}>{url && item.media_type !== "clip" ? <Image src={url} alt={item.alt_text || item.title || ""} fill sizes="64px" className="object-cover" /> : <span className="grid h-full place-items-center text-xs"><Box aria-hidden className="h-4 w-4" /></span>}</button>;
         })}
       </div>
     </section>

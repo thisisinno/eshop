@@ -4,6 +4,8 @@ import { Gallery } from "@/components/products/Gallery";
 import { ProductShelf } from "@/components/products/ProductShelf";
 import { serverGet } from "@/lib/api/django";
 import type { ProductDetail } from "@/types/storefront";
+import { ProductPurchasePanel } from "@/components/products/ProductPurchasePanel";
+import { CollapsibleSections } from "@/components/products/CollapsibleSections";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -23,17 +25,14 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   return (
     <article>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <Gallery gallery={product.media.gallery} videos={product.media.videos} viewer={product.viewer_360} />
-      <section className="mt-4 rounded-lg bg-white p-4">
-        <p className="font-bold text-[#5b2cff]">{product.store.business_name}{product.store.is_verified ? " · Verified" : ""}</p>
-        <h1 className="mt-2 text-2xl font-black">{product.name}</h1>
-        <p className="mt-2 text-2xl font-black">{product.currency} {Number(product.price).toLocaleString()}</p>
-        {product.compare_at_price && <p className="text-black/45 line-through">{product.currency} {Number(product.compare_at_price).toLocaleString()}</p>}
-        <p className="mt-3 text-sm">{product.short_description}</p>
-        <div className="mt-4 flex gap-2"><button className="flex-1 rounded-lg bg-[#5b2cff] py-3 font-bold text-white">Add to cart</button><button className="flex-1 rounded-lg bg-[#161225] py-3 font-bold text-white">Buy now</button></div>
-      </section>
-      <section className="mt-4 rounded-lg bg-white p-4"><h2 className="font-black">Description</h2><p className="mt-2 whitespace-pre-wrap text-sm text-black/70">{product.description || "No description provided."}</p></section>
-      <ProductShelf title="Related products" products={product.related_products} />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,.92fr)] lg:items-start">
+        <Gallery gallery={product.media.gallery} videos={product.media.videos} viewer={product.viewer_360} />
+        <ProductPurchasePanel product={product} />
+      </div>
+      <CollapsibleSections product={product} />
+      <div className="mt-7">
+        <ProductShelf title="Related products" products={product.related_products} href={`/search?category=${product.category?.slug ?? ""}`} />
+      </div>
     </article>
   );
 }

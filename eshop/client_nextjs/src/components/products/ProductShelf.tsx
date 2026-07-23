@@ -1,16 +1,16 @@
 import type { ProductCard as ProductCardType } from "@/types/storefront";
 import { ProductCard } from "./ProductCard";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { ProductShelfScroller } from "./ProductShelfScroller";
 
-export function ProductShelf({ title, products }: { title: string; products: ProductCardType[] }) {
+export function ProductShelf({ title, products, href }: { title: string; products: ProductCardType[]; href?: string }) {
   if (!products.length) return null;
   return (
-    <section className="mb-6">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-lg font-black">{title}</h2>
-      </div>
-      <div className="shelf-scroll">
+    <section className="mb-7">
+      <SectionHeader title={title} href={href} />
+      <ProductShelfScroller>
         {products.map((product) => <ProductCard key={product.id} product={product} />)}
-      </div>
+      </ProductShelfScroller>
     </section>
   );
 }

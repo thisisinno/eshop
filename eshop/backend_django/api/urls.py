@@ -12,7 +12,7 @@ from api.views.logs import AdminActivityLogsAPIView, ProductInteractionAPIView, 
 from api.views.orders import OrderActionAPIView, OrderDetailAPIView, OrdersAPIView
 from api.views.storefront import (
     CartAPIView, CartItemDetailAPIView, CartItemsAPIView, CustomerOrderCreateAPIView,
-    MyOrderDetailAPIView, MyOrdersAPIView, ProductBookmarkAPIView, StoreFollowAPIView,
+    MyOrderDetailAPIView, MyOrdersAPIView, ProductBookmarkAPIView, ProductBookmarksAPIView, StoreFollowAPIView,
     StorefrontCategoriesAPIView, StorefrontCategoryDetailAPIView, StorefrontHomeAPIView,
     StorefrontProductDetailAPIView, StorefrontProductsAPIView, StorefrontStoreDetailAPIView,
     StorefrontStoresAPIView,
@@ -40,6 +40,7 @@ urlpatterns = [
     path("storefront/categories/", StorefrontCategoriesAPIView.as_view()),
     path("storefront/categories/<slug:slug>/", StorefrontCategoryDetailAPIView.as_view()),
     path("storefront/products/", StorefrontProductsAPIView.as_view()),
+    path("storefront/bookmarks/", ProductBookmarksAPIView.as_view()),
     path("storefront/products/<int:pk>/", StorefrontProductDetailAPIView.as_view()),
     path("storefront/products/<int:pk>/bookmark/", ProductBookmarkAPIView.as_view()),
     path("storefront/stores/", StorefrontStoresAPIView.as_view()),
