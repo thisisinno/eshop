@@ -46,12 +46,12 @@ export function ProductComposer() {
       </div>
       <Card className="overflow-x-auto p-2">
         <div className="flex min-w-max gap-2">
-          {steps.map(({ title, Icon }, index) => <button type="button" key={title} onClick={() => setStep(index)} className={`inline-flex h-11 items-center gap-2 rounded-lg px-3 text-sm font-semibold transition ${step === index ? "bg-[var(--color-primary)] text-white" : "hover:bg-slate-100"}`}><Icon aria-hidden className="h-4 w-4" />{title}</button>)}
+          {steps.map(({ title, Icon }, index) => <button type="button" key={title} onClick={() => setStep(index)} className={`inline-flex h-11 items-center gap-2 rounded-full px-3 text-sm font-semibold transition ${step === index ? "bg-[var(--color-black)] text-white" : "hover:bg-[var(--color-primary-soft)]"}`}><Icon aria-hidden className="h-4 w-4" />{title}</button>)}
         </div>
       </Card>
       <Card className="p-4">
         {step === 0 ? <div className="grid gap-3 sm:grid-cols-2"><L label="Trader/store ID" name="trader" type="number" required /><L label="Category ID" name="category" type="number" required /></div> : null}
-        {step === 1 ? <div className="grid gap-3"><L label="Product name" name="name" required /><L label="Short description" name="short_description" required /><textarea name="description" placeholder="Full description" className="min-h-32 rounded-lg border border-[var(--color-border)] p-3 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-4 focus:ring-blue-100" /><div className="grid gap-3 sm:grid-cols-3"><L label="Price" name="price" type="number" required /><L label="Compare at price" name="compare_at_price" type="number" /><L label="Stock" name="stock_quantity" type="number" required /></div><L label="Minimum order quantity" name="minimum_order_quantity" type="number" defaultValue={1} /></div> : null}
+        {step === 1 ? <div className="grid gap-3"><L label="Product name" name="name" required /><L label="Short description" name="short_description" required /><textarea name="description" placeholder="Full description" className="min-h-32 rounded-lg border border-[var(--color-border-strong)] p-3 text-sm focus:border-[var(--color-text)] focus:outline-none" /><div className="grid gap-3 sm:grid-cols-3"><L label="Price" name="price" type="number" required /><L label="Compare at price" name="compare_at_price" type="number" /><L label="Stock" name="stock_quantity" type="number" required /></div><L label="Minimum order quantity" name="minimum_order_quantity" type="number" defaultValue={1} /></div> : null}
         {step === 2 ? <UploadPanel title="Gallery media" helper="Upload images or video after saving the product draft." /> : null}
         {step === 3 ? <UploadPanel title="360 frames / GLB" helper="Upload spin frames or a GLB model through the media endpoint after the draft exists." /> : null}
         {step === 4 ? <div className="space-y-3"><p className="text-sm text-[var(--color-text-secondary)]">Preview uses the same storefront card/detail components after the product is saved and media is attached.</p><Button type="submit" loading={loading}>Save draft</Button></div> : null}
@@ -70,5 +70,5 @@ function L(props: React.InputHTMLAttributes<HTMLInputElement> & { label: string 
 }
 
 function UploadPanel({ title, helper }: { title: string; helper: string }) {
-  return <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center"><UploadCloud aria-hidden className="mx-auto h-8 w-8 text-[var(--color-primary)]" /><h2 className="mt-3 font-black">{title}</h2><p className="mt-1 text-sm text-[var(--color-text-secondary)]">{helper}</p><input type="file" multiple className="mt-4 block w-full text-sm" /></div>;
+  return <div className="rounded-lg border border-dashed border-[var(--color-border-strong)] bg-[var(--color-primary-soft)] p-8 text-center"><UploadCloud aria-hidden className="mx-auto h-8 w-8 text-[var(--color-text)]" /><h2 className="mt-3 font-black">{title}</h2><p className="mt-1 text-sm text-[var(--color-text-secondary)]">{helper}</p><input type="file" multiple className="mt-4 block w-full text-sm" /></div>;
 }

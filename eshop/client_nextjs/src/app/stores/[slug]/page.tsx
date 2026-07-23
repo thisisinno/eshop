@@ -22,18 +22,18 @@ export default async function StorePage({ params, searchParams }: { params: Prom
   const logo = resolveMediaUrl(data.store.logo_url);
   return (
     <section>
-      <div className="overflow-hidden rounded-lg border border-[var(--color-border)] bg-white shadow-sm">
-        <div className="relative h-32 bg-slate-100 md:h-44">
-          {cover ? <Image src={cover} alt={`${data.store.business_name} cover`} fill sizes="(max-width: 1024px) 100vw, 900px" className="object-cover" /> : <div className="h-full bg-[linear-gradient(135deg,#eff6ff,#ffffff_45%,#dbeafe)]" />}
+      <div className="overflow-hidden border-b border-[var(--color-border)] bg-white">
+        <div className="relative h-32 bg-[var(--color-primary-soft)] md:h-44">
+          {cover ? <Image src={cover} alt={`${data.store.business_name} cover`} fill sizes="(max-width: 1024px) 100vw, 760px" className="object-cover" /> : null}
         </div>
         <div className="px-4 pb-4">
           <div className="-mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex items-end gap-3">
-              <div className="relative grid h-20 w-20 place-items-center overflow-hidden rounded-lg border-4 border-white bg-slate-100 shadow-sm">
-                {logo ? <Image src={logo} alt={`${data.store.business_name} logo`} fill sizes="80px" className="object-cover" /> : <Store aria-hidden className="h-8 w-8 text-[var(--color-primary)]" />}
+              <div className="relative grid h-20 w-20 place-items-center overflow-hidden rounded-xl border-4 border-white bg-[var(--color-primary-soft)]">
+                {logo ? <Image src={logo} alt={`${data.store.business_name} logo`} fill sizes="80px" className="object-cover" /> : <Store aria-hidden className="h-8 w-8 text-[var(--color-text)]" />}
               </div>
               <div className="pb-1">
-                <h1 className="flex items-center gap-2 text-2xl font-black md:text-3xl">{data.store.business_name}{data.store.is_verified ? <CheckCircle2 aria-label="Verified" className="h-5 w-5 text-[var(--color-primary)]" /> : null}</h1>
+                <h1 className="flex items-center gap-2 text-2xl font-black md:text-3xl">{data.store.business_name}{data.store.is_verified ? <CheckCircle2 aria-label="Verified" className="h-5 w-5 text-[var(--color-text)]" /> : null}</h1>
                 <p className="mt-1 inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]"><MapPin aria-hidden className="h-4 w-4" />{data.store.location_summary || "Location not listed"}</p>
               </div>
             </div>
@@ -46,14 +46,14 @@ export default async function StorePage({ params, searchParams }: { params: Prom
           </div>
           <form className="mt-4 flex gap-2">
             <label className="relative flex-1">
-              <Search aria-hidden className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input name="search" defaultValue={sp.search || ""} placeholder="Search this store" className="h-11 w-full rounded-lg border border-[var(--color-border)] bg-white pl-10 pr-3 text-sm focus:border-[var(--color-primary)] focus:outline-none focus:ring-4 focus:ring-blue-100" />
+              <Search aria-hidden className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-secondary)]" />
+              <input name="search" defaultValue={sp.search || ""} placeholder="Search this store" className="h-11 w-full rounded-full border border-[var(--color-border-strong)] bg-white pl-10 pr-3 text-sm focus:border-[var(--color-text)] focus:outline-none" />
             </label>
-            <button className="h-11 rounded-lg bg-[var(--color-black)] px-4 text-sm font-semibold text-white">Search</button>
+            <button className="h-11 rounded-full bg-[var(--color-black)] px-4 text-sm font-semibold text-white">Search</button>
           </form>
         </div>
       </div>
-      {data.results.length ? <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{data.results.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="mt-5"><EmptyState title="No products found in this store" /></div>}
+      {data.results.length ? <div className="product-grid-two p-3 md:p-4">{data.results.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="p-4"><EmptyState title="No products found in this store" /></div>}
     </section>
   );
 }

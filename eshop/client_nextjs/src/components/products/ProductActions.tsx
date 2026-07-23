@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Check, Heart, ShoppingBag } from "lucide-react";
+import { Check, Plus, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/Button";
 import { IconButton } from "@/components/ui/IconButton";
@@ -21,21 +21,21 @@ export function BookmarkButton({ productId, initialBookmarked, compact = false }
     setLoading(false);
     if (response.status === 401) {
       setBookmarked(!next);
-      toast.error("Sign in to save products.");
+      toast.error("Sign in to use My List.");
       router.push("/auth/sign-in");
       return;
     }
     if (!response.ok) {
       setBookmarked(!next);
-      toast.error("Could not update saved product.");
+      toast.error("Could not update My List.");
       return;
     }
-    toast.success(next ? "Saved" : "Removed from saved");
+    toast.success(next ? "Added to My List" : "Removed from My List");
     router.refresh();
   }
   return (
-    <IconButton aria-label={bookmarked ? "Remove saved product" : "Save product"} active={bookmarked} disabled={loading} onClick={toggle} className={compact ? "h-9 w-9" : undefined}>
-      <Heart aria-hidden className={`h-4.5 w-4.5 transition ${bookmarked ? "fill-current scale-110" : ""}`} />
+    <IconButton aria-label={bookmarked ? "Remove from My List" : "Add to My List"} active={bookmarked} disabled={loading} onClick={toggle} className={compact ? "h-9 w-9 bg-white/95" : undefined}>
+      {bookmarked ? <Check aria-hidden className="h-4.5 w-4.5 scale-110 transition" /> : <Plus aria-hidden className="h-4.5 w-4.5 transition" />}
     </IconButton>
   );
 }

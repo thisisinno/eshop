@@ -7,11 +7,11 @@ type Variant = "primary" | "secondary" | "outline" | "ghost" | "danger";
 type Size = "sm" | "md" | "lg" | "icon";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-[var(--color-primary)] text-white shadow-sm hover:bg-[var(--color-primary-hover)] active:bg-[var(--color-primary-active)]",
-  secondary: "bg-[var(--color-black)] text-white shadow-sm hover:bg-black/85",
-  outline: "border border-[var(--color-border)] bg-white text-[var(--color-text)] hover:border-slate-300 hover:bg-slate-50",
-  ghost: "bg-transparent text-[var(--color-text)] hover:bg-slate-100",
-  danger: "bg-[var(--color-danger)] text-white hover:bg-red-700",
+  primary: "bg-[var(--color-black)] text-white hover:bg-[var(--color-primary-hover)] active:bg-[var(--color-primary-active)]",
+  secondary: "border border-[var(--color-text)] bg-white text-[var(--color-text)] hover:bg-[var(--color-primary-soft)]",
+  outline: "border border-[var(--color-border-strong)] bg-white text-[var(--color-text)] hover:bg-[var(--color-primary-soft)]",
+  ghost: "bg-transparent text-[var(--color-text)] hover:bg-[var(--color-primary-soft)]",
+  danger: "border border-[var(--color-text)] bg-white text-[var(--color-text)] hover:bg-[var(--color-primary-soft)]",
 };
 
 const sizes: Record<Size, string> = {
@@ -21,7 +21,7 @@ const sizes: Record<Size, string> = {
   icon: "h-11 w-11 p-0",
 };
 
-const base = "inline-flex shrink-0 items-center justify-center gap-2 rounded-lg font-semibold transition duration-180 ease-out hover:-translate-y-0.5 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:active:scale-100";
+const base = "inline-flex shrink-0 items-center justify-center gap-2 rounded-full font-semibold transition duration-180 ease-out active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100";
 
 type ButtonProps = ComponentPropsWithoutRef<"button"> & {
   variant?: Variant;

@@ -1,21 +1,22 @@
 @import "tailwindcss";
 
 :root {
-  --color-background: #f7f8fa;
+  --color-background: #ffffff;
   --color-surface: #ffffff;
-  --color-text: #0a0a0a;
-  --color-text-secondary: #667085;
-  --color-border: #e5e7eb;
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-primary-active: #1e40af;
-  --color-primary-soft: #eff6ff;
-  --color-black: #090909;
-  --color-danger: #dc2626;
-  --color-success: #16a34a;
+  --color-text: #0f1419;
+  --color-text-secondary: #536471;
+  --color-border: #eff3f4;
+  --color-border-strong: #cfd9de;
+  --color-primary: #0f1419;
+  --color-primary-hover: #272c30;
+  --color-primary-active: #000000;
+  --color-primary-soft: #eff3f4;
+  --color-black: #000000;
+  --color-danger: #0f1419;
+  --color-success: #0f1419;
   --radius-card: 8px;
-  --shadow-card: 0 1px 2px rgba(10, 10, 10, .05);
-  --shadow-card-hover: 0 14px 34px rgba(15, 23, 42, .12);
+  --shadow-card: none;
+  --shadow-card-hover: none;
   --nav-height: 76px;
 }
 
@@ -30,24 +31,25 @@ body {
 }
 a { color: inherit; text-decoration: none; }
 button, input, select, textarea { font: inherit; }
-:focus-visible { outline: 3px solid rgba(37, 99, 235, .3); outline-offset: 2px; }
+:focus-visible { outline: 2px solid #0f1419; outline-offset: 2px; }
 
 .app-shell {
   min-height: 100vh;
   padding: 58px 0 calc(var(--nav-height) + env(safe-area-inset-bottom));
 }
-.main-column { width: min(100%, 900px); margin: 0 auto; padding: 0 12px; }
+.main-column { width: min(100%, 760px); margin: 0 auto; padding: 0 12px; }
+.feed-column { border-left: 1px solid var(--color-border); border-right: 1px solid var(--color-border); min-height: 100vh; }
+.product-grid-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .shelf-scroll {
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: calc((100% - 10px) / 2);
-  gap: 10px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  overflow: visible;
+  scroll-snap-type: none;
   scrollbar-width: none;
   scroll-behavior: smooth;
-  padding: 2px 12px 10px;
-  margin: 0 -12px;
+  padding: 0;
+  margin: 0;
 }
 .shelf-scroll::-webkit-scrollbar { display: none; }
 .snap-card { scroll-snap-align: start; }
@@ -55,25 +57,19 @@ button, input, select, textarea { font: inherit; }
 .line-clamp-1 { -webkit-line-clamp: 1; }
 .line-clamp-2 { -webkit-line-clamp: 2; min-height: 40px; }
 
-@media (min-width: 430px) {
-  .shelf-scroll { grid-auto-columns: calc((100% - 28px) / 2.35); }
-}
 @media (min-width: 768px) {
-  .app-shell { padding: 18px 0 18px 78px; }
-  .main-column { padding: 0 18px; }
-  .shelf-scroll { grid-auto-columns: calc((100% - 36px) / 3.35); gap: 12px; padding-left: 0; margin-left: 0; }
+  .app-shell { padding: 0 0 0 78px; }
+  .main-column { padding: 0; }
 }
-@media (min-width: 1180px) {
-  .app-shell { padding-left: 250px; }
-  .main-column { max-width: 980px; }
-  .shelf-scroll { grid-auto-columns: calc((100% - 60px) / 5); }
+@media (min-width: 1200px) {
+  .app-shell { padding-left: 260px; padding-right: 330px; }
 }
-@media (min-width: 1280px) {
-  .app-shell { padding-right: 330px; }
+@media (min-width: 1440px) {
+  .app-shell { padding-left: 275px; padding-right: 350px; }
+  .main-column { width: 740px; }
 }
 @media (min-width: 1600px) {
-  .main-column { max-width: 1100px; }
-  .shelf-scroll { grid-auto-columns: calc((100% - 72px) / 6); }
+  .main-column { width: 740px; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

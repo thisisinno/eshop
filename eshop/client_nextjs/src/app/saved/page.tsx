@@ -7,12 +7,14 @@ import type { Paginated, ProductCard as ProductCardType } from "@/types/storefro
 
 export default async function SavedPage() {
   const user = await getCurrentUser();
-  if (!user) return <EmptyState title="Sign in to view saved products" action={<ButtonLink href="/auth/sign-in">Sign in</ButtonLink>}>Bookmarks are private to your account.</EmptyState>;
+  if (!user) return <EmptyState title="Sign in to view My List" action={<ButtonLink href="/auth/sign-in">Sign in</ButtonLink>}>Products in My List are private to your account.</EmptyState>;
   const data = await serverGet<Paginated<ProductCardType>>("/storefront/bookmarks/");
   return (
     <section>
-      <h1 className="mb-4 text-2xl font-black md:text-3xl">Saved</h1>
-      {data.results.length ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{data.results.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <EmptyState title="No saved products yet" action={<ButtonLink href="/search">Find products</ButtonLink>}>Tap the heart on products you want to revisit.</EmptyState>}
+      <div className="border-b border-[var(--color-border)] px-4 py-4">
+        <h1 className="text-2xl font-black md:text-3xl">My List</h1>
+      </div>
+      {data.results.length ? <div className="product-grid-two p-3 md:p-4">{data.results.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="p-4"><EmptyState title="No products in My List yet" action={<ButtonLink href="/search">Find products</ButtonLink>}>Use + on products you want to revisit.</EmptyState></div>}
     </section>
   );
 }

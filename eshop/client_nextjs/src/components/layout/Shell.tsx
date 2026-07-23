@@ -15,13 +15,13 @@ export async function Shell({ children, user }: { children: React.ReactNode; use
   const postable = canPostProduct(user);
   return (
     <CartProvider initialCount={cart?.total_quantity ?? 0}>
-      <Header user={user} />
+      <Header />
       <LeftNav user={user} canPost={postable} />
       <main className="app-shell">
-        <div className="main-column">{children}</div>
+        <div className="main-column feed-column">{children}</div>
       </main>
       <RightRail cart={cart} stores={stores.slice(0, 4)} recent={recent.slice(0, 3)} />
-      <BottomNav canPost={postable} />
+      <BottomNav user={user} canPost={postable} />
     </CartProvider>
   );
 }

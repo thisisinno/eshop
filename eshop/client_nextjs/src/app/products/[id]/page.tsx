@@ -25,12 +25,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   return (
     <article>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.08fr)_minmax(360px,.92fr)] lg:items-start">
+      <div className="grid gap-0 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,.95fr)] lg:items-start">
         <Gallery gallery={product.media.gallery} videos={product.media.videos} viewer={product.viewer_360} />
         <ProductPurchasePanel product={product} />
       </div>
       <CollapsibleSections product={product} />
-      <div className="mt-7">
+      <div>
         <ProductShelf title="Related products" products={product.related_products} href={`/search?category=${product.category?.slug ?? ""}`} />
       </div>
     </article>

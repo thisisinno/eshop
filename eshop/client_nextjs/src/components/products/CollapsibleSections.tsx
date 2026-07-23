@@ -17,7 +17,7 @@ export function CollapsibleSections({ product }: { product: ProductDetail }) {
       {sections.map(([title, content]) => (
         <div key={title} className="border-b border-[var(--color-border)] last:border-b-0">
           <button className="flex w-full items-center justify-between px-4 py-4 text-left font-bold" onClick={() => setOpen((current) => current === title ? "" : title)}>
-            {title}<ChevronRight aria-hidden className={`h-5 w-5 transition ${open === title ? "rotate-90 text-[var(--color-primary)]" : ""}`} />
+            {title}<ChevronRight aria-hidden className={`h-5 w-5 transition ${open === title ? "rotate-90 text-[var(--color-text)]" : ""}`} />
           </button>
           {open === title ? <div className="px-4 pb-4 text-sm leading-6 text-[var(--color-text-secondary)] whitespace-pre-wrap">{content}</div> : null}
         </div>

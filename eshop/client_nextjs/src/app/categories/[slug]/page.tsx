@@ -14,24 +14,24 @@ export default async function CategoryDetailPage({ params, searchParams }: { par
   const products = data.results;
   return (
     <section>
-      <div className="mb-4 flex flex-col gap-3 rounded-lg border border-[var(--color-border)] bg-white p-4 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 border-b border-[var(--color-border)] bg-white p-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-[var(--color-primary)]">Category</p>
+          <p className="text-sm font-semibold text-[var(--color-text-secondary)]">Category</p>
           <h1 className="text-2xl font-black md:text-3xl">{data.category.name}</h1>
           <p className="mt-1 text-sm text-[var(--color-text-secondary)]">{data.count} products</p>
         </div>
         <form className="flex gap-2">
-          <select name="sort" defaultValue={sp.sort || "newest"} className="h-10 rounded-lg border border-[var(--color-border)] bg-white px-3 text-sm">
+          <select name="sort" defaultValue={sp.sort || "newest"} className="h-10 rounded-full border border-[var(--color-border-strong)] bg-white px-3 text-sm">
             <option value="newest">Newest</option>
             <option value="popularity">Popular</option>
             <option value="best_selling">Best selling</option>
             <option value="price_asc">Price low</option>
             <option value="price_desc">Price high</option>
           </select>
-          <button className="h-10 rounded-lg bg-[var(--color-black)] px-4 text-sm font-semibold text-white">Apply</button>
+          <button className="h-10 rounded-full bg-[var(--color-black)] px-4 text-sm font-semibold text-white">Apply</button>
         </form>
       </div>
-      {products.length ? <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <EmptyState title="No public products in this category yet" />}
+      {products.length ? <div className="product-grid-two p-3 md:p-4">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="p-4"><EmptyState title="No public products in this category yet" /></div>}
     </section>
   );
 }

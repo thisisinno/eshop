@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: { siteName: "eShop", type: "website" },
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#2563eb" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#ffffff" };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -28,7 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" data-scroll-behavior="smooth">
       <body className={geist.variable}>
         <Shell user={user}>{children}</Shell>
-        <Toaster richColors position="top-center" />
+        <Toaster position="top-center" toastOptions={{ className: "border border-[var(--color-border-strong)] bg-white text-[var(--color-text)] shadow-none" }} />
         <Script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js" strategy="lazyOnload" />
       </body>
     </html>
