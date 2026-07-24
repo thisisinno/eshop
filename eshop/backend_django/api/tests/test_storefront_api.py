@@ -1,7 +1,11 @@
 from decimal import Decimal
+from io import StringIO
 
 from django.contrib.auth.models import Permission, User
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
+from django.db import connection
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework.authtoken.models import Token
@@ -17,9 +21,11 @@ class StorefrontAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
         self.category = ProductCategory.objects.create(name="Phones", is_active=True)
+        self.other_category = ProductCategory.objects.create(name="Accessories", is_active=True, display_order=2)
         self.store = TraderProfile.objects.create(trader_type=TraderProfile.TraderType.COMPANY, business_name="Approved Store", phone="123", status=TraderProfile.Status.APPROVED)
         self.pending_store = TraderProfile.objects.create(trader_type=TraderProfile.TraderType.COMPANY, business_name="Pending Store", phone="124", status=TraderProfile.Status.PENDING)
         self.product = Product.objects.create(trader=self.store, category=self.category, name="Active Phone", price=Decimal("100.00"), stock_quantity=5, status=Product.Status.ACTIVE)
+        self.other_product = Product.objects.create(trader=self.store, category=self.other_category, name="Active Case", price=Decimal("25.00"), stock_quantity=5, status=Product.Status.ACTIVE)
         self.draft = Product.objects.create(trader=self.store, category=self.category, name="Draft Phone", price=Decimal("90.00"), stock_quantity=5, status=Product.Status.DRAFT)
         self.pending_store_product = Product.objects.create(trader=self.pending_store, category=self.category, name="Hidden Phone", price=Decimal("80.00"), stock_quantity=5, status=Product.Status.ACTIVE)
         self.customer = User.objects.create_user(username="customer", password="password123", email="c@example.com")
@@ -55,9 +61,11 @@ class StorefrontAPITests(TestCase):
         self.assertEqual(response.status_code, 200)
         names = [item["name"] for item in response.data["results"]]
         self.assertIn(self.product.name, names)
+        self.assertIn(self.other_product.name, names)
         self.assertNotIn(self.draft.name, names)
         self.assertNotIn(self.pending_store_product.name, names)
         self.assertNotIn("cost_price", response.data["results"][0])
+        self.assertIn("delivery_fee", response.data["results"][0])
 
     def test_follow_unfollow_is_unique_and_counts(self):
         self.auth(self.customer)
@@ -74,7 +82,15 @@ class StorefrontAPITests(TestCase):
     def test_store_detail_returns_only_public_products(self):
         response = self.client.get(f"/api/storefront/stores/{self.store.slug}/")
         names = [item["name"] for item in response.data["results"]]
-        self.assertEqual(names, [self.product.name])
+        self.assertCountEqual(names, [self.product.name, self.other_product.name])
+
+    def test_public_product_detail_serializes_delivery_fee(self):
+        self.product.delivery_fee = Decimal("3000.00")
+        self.product.save()
+        response = self.client.get(f"/api/storefront/products/{self.product.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["delivery_fee"], "3000.00")
+        self.assertEqual(response.data["viewer_360"]["enabled"], False)
 
     def test_product_bookmark_works(self):
         self.auth(self.customer)
@@ -340,3 +356,70 @@ class StorefrontAPITests(TestCase):
         returned = [product for shelf in response.data["shelves"] for product in shelf["products"]]
         self.assertTrue(returned)
         self.assertTrue(all("cost_price" not in product for product in returned))
+
+    def test_ordinary_active_product_does_not_require_360_media_by_default(self):
+        product = Product.objects.create(trader=self.store, category=self.category, name="Ordinary Product", price=Decimal("40.00"), stock_quantity=2, status=Product.Status.ACTIVE)
+        self.assertFalse(product.view_360_enabled)
+        product.full_clean()
+
+    def test_360_validation_only_runs_when_explicitly_enabled(self):
+        self.product.view_360_enabled = True
+        self.product.view_360_mode = Product.Viewer360Mode.SPIN
+        with self.assertRaises(ValidationError):
+            self.product.full_clean()
+
+    def test_all_category_is_virtual_and_first(self):
+        response = self.client.get("/api/storefront/categories/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["id"], 0)
+        self.assertEqual(response.data[0]["name"], "All")
+        self.assertEqual(response.data[0]["slug"], "all")
+        self.assertFalse(ProductCategory.objects.filter(slug="all").exists())
+
+    def test_all_category_detail_returns_products_across_real_categories(self):
+        response = self.client.get("/api/storefront/categories/all/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["category"]["slug"], "all")
+        names = [item["name"] for item in response.data["results"]]
+        self.assertIn(self.product.name, names)
+        self.assertIn(self.other_product.name, names)
+        self.assertNotIn(self.draft.name, names)
+        self.assertNotIn(self.pending_store_product.name, names)
+
+    def test_category_all_query_does_not_filter_but_real_category_still_filters(self):
+        all_response = self.client.get("/api/storefront/products/?category=all")
+        self.assertEqual(all_response.status_code, 200)
+        all_names = [item["name"] for item in all_response.data["results"]]
+        self.assertIn(self.product.name, all_names)
+        self.assertIn(self.other_product.name, all_names)
+
+        category_response = self.client.get(f"/api/storefront/products/?category={self.category.slug}")
+        self.assertEqual(category_response.status_code, 200)
+        category_names = [item["name"] for item in category_response.data["results"]]
+        self.assertIn(self.product.name, category_names)
+        self.assertNotIn(self.other_product.name, category_names)
+
+    def test_current_model_tables_and_columns_exist(self):
+        expected = {
+            "api_product": {"delivery_fee", "specifications", "view_360_enabled", "view_360_mode"},
+            "api_productmedia": {"media_type", "caption", "frame_index", "edit_metadata", "mime_type", "file_size"},
+            "api_orderitem": {"delivery_fee_snapshot"},
+            "api_storefollow": {"user_id", "trader_id"},
+            "api_productbookmark": {"user_id", "product_id"},
+            "api_cart": {"user_id"},
+            "api_cartitem": {"cart_id", "product_id", "quantity"},
+            "api_sitebranding": {"site_name", "logo", "logo_alt_text"},
+            "api_brandstatus": {"media", "media_type", "caption", "starts_at", "expires_at"},
+            "api_usernotification": {"recipient_id", "notification_type", "lifecycle_state"},
+        }
+        table_names = set(connection.introspection.table_names())
+        cursor = connection.cursor()
+        for table, columns in expected.items():
+            self.assertIn(table, table_names)
+            actual_columns = {column.name for column in connection.introspection.get_table_description(cursor, table)}
+            self.assertTrue(columns.issubset(actual_columns), f"{table} missing {sorted(columns - actual_columns)}")
+
+    def test_makemigrations_reports_no_pending_api_changes(self):
+        output = StringIO()
+        call_command("makemigrations", "api", check=True, dry_run=True, stdout=output)
+        self.assertIn("No changes detected", output.getvalue())
