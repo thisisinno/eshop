@@ -46,34 +46,34 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
     router.push("/checkout");
   }
   return (
-    <section className="border-t border-[var(--color-border)] bg-white p-4 md:border-t-0 md:p-5 lg:pt-5">
+    <section className="border-t border-[var(--color-border)] bg-white p-3 md:border-t-0 md:p-5 lg:pt-5">
       <div className="mx-auto max-w-xl lg:max-w-none">
-        <Link href={`/stores/${product.store.slug}`} className="inline-flex max-w-full items-center gap-1.5 text-sm font-bold text-[var(--color-text-secondary)] hover:underline">
+        <Link href={`/stores/${product.store.slug}`} className="inline-flex max-w-full items-center gap-1.5 text-xs font-bold text-[var(--color-text-secondary)] hover:underline md:text-sm">
           <span className="truncate">{product.store.business_name}</span>
           {product.store.is_verified ? <VerifiedBusinessBadge /> : null}
         </Link>
-        <h1 className="mt-2 text-xl font-black leading-snug md:text-2xl">{product.name}</h1>
-        <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <p className="text-2xl font-black">{money(product.price, product.currency)}</p>
+        <h1 className="mt-1 text-lg font-black leading-snug md:mt-2 md:text-2xl">{product.name}</h1>
+        <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 md:mt-4">
+          <p className="text-xl font-black md:text-2xl">{money(product.price, product.currency)}</p>
           {product.compare_at_price ? <span className="text-sm text-[var(--color-text-secondary)] line-through">{money(product.compare_at_price, product.currency)}</span> : null}
         </div>
-        <div className="mt-4 grid gap-2 text-sm">
+        <div className="mt-3 grid gap-1.5 text-sm md:mt-4 md:gap-2">
           <p className="font-semibold text-[var(--color-text)]">{unavailable ? "Currently unavailable" : `${product.stock_quantity} in stock`}</p>
           <p className="inline-flex items-center gap-2 text-[var(--color-text-secondary)]"><Truck aria-hidden className="h-4 w-4" />{Number(product.delivery_fee) > 0 ? `${money(product.delivery_fee, product.currency)} delivery` : "Free delivery"}</p>
         </div>
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-3 flex items-center gap-3 md:mt-4">
           <span className="text-sm font-semibold">Qty</span>
-          <div className="flex h-9 items-center rounded-full border border-[var(--color-border-strong)] bg-white">
-            <button aria-label="Decrease quantity" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[var(--color-primary-soft)]" onClick={() => setQuantity((current) => Math.max(minimum, current - 1))}><Minus aria-hidden className="h-4 w-4" /></button>
+          <div className="flex h-10 items-center rounded-full border border-[var(--color-border-strong)] bg-white md:h-9">
+            <button aria-label="Decrease quantity" className="grid h-10 w-10 place-items-center rounded-full hover:bg-[var(--color-primary-soft)] md:h-9 md:w-9" onClick={() => setQuantity((current) => Math.max(minimum, current - 1))}><Minus aria-hidden className="h-4 w-4" /></button>
             <span className="w-9 text-center text-sm font-bold">{quantity}</span>
-            <button aria-label="Increase quantity" className="grid h-9 w-9 place-items-center rounded-full hover:bg-[var(--color-primary-soft)]" onClick={() => setQuantity((current) => Math.min(product.stock_quantity || current + 1, current + 1))}><Plus aria-hidden className="h-4 w-4" /></button>
+            <button aria-label="Increase quantity" className="grid h-10 w-10 place-items-center rounded-full hover:bg-[var(--color-primary-soft)] md:h-9 md:w-9" onClick={() => setQuantity((current) => Math.min(product.stock_quantity || current + 1, current + 1))}><Plus aria-hidden className="h-4 w-4" /></button>
           </div>
         </div>
-        <div className="mt-5 flex items-center gap-3">
+        <div className="mt-4 flex items-center gap-2 md:mt-5 md:gap-3">
           <CartAction productId={product.id} productName={product.name} minimumOrderQuantity={product.minimum_order_quantity} stockQuantity={product.stock_quantity} requestedQuantity={quantity} size="large" />
-          <Button className="h-11 flex-1" variant="secondary" loading={buying} disabled={unavailable} onClick={buyNow}>Buy Now</Button>
+          <Button className="h-10 flex-1 px-3 text-sm md:h-11 md:text-base" variant="secondary" loading={buying} disabled={unavailable} onClick={buyNow}>Buy Now</Button>
         </div>
-        <div className="mt-3 flex items-center gap-3">
+        <div className="mt-3 flex items-center gap-2 md:gap-3">
           <BookmarkButton productId={product.id} initialBookmarked={product.is_bookmarked} />
           <ShareProductButton product={product} />
         </div>

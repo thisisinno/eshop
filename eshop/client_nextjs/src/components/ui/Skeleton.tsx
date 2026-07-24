@@ -1,7 +1,7 @@
 import { clsx } from "clsx";
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={clsx("animate-pulse rounded-lg bg-gradient-to-r from-slate-100 via-white to-slate-100 bg-[length:200%_100%]", className)} />;
+  return <div className={clsx("skeleton-shimmer rounded-lg bg-[var(--color-primary-soft)]", className)} />;
 }
 
 export function ProductCardSkeleton() {
@@ -17,4 +17,17 @@ export function ProductCardSkeleton() {
       </div>
     </div>
   );
+}
+
+export function PageTitleSkeleton({ lines = 1 }: { lines?: number }) {
+  return (
+    <div className="border-b border-[var(--color-border)] px-4 py-4">
+      <Skeleton className="h-7 w-36 md:h-8 md:w-44" />
+      {Array.from({ length: lines - 1 }).map((_, index) => <Skeleton key={index} className="mt-2 h-4 w-24" />)}
+    </div>
+  );
+}
+
+export function ProductGridSkeleton({ count = 6, className = "product-grid-two p-3 md:p-4" }: { count?: number; className?: string }) {
+  return <div className={className}>{Array.from({ length: count }).map((_, index) => <ProductCardSkeleton key={index} />)}</div>;
 }

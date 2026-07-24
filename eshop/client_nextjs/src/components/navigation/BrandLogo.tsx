@@ -34,11 +34,19 @@ function getViewerId() {
 
 export function BrandLogo({ branding, user, className = "" }: { branding: SiteBranding; user: User | null; className?: string }) {
   const [open, setOpen] = useState(false);
-  const [seen, setSeen] = useState<Set<number>>(() => readSeen());
+  const [seen, setSeen] = useState<Set<number>>(() => new Set());
+  const [seenStateReady, setSeenStateReady] = useState(false);
   const statuses = useMemo(() => branding.statuses || [], [branding.statuses]);
   const hasStatuses = statuses.length > 0;
-  const unseen = useMemo(() => statuses.some((status) => !seen.has(status.id)), [seen, statuses]);
+  const unseen = useMemo(() => seenStateReady && statuses.some((status) => !seen.has(status.id)), [seen, seenStateReady, statuses]);
   const logo = resolveMediaUrl(branding.logo_url);
+
+  useEffect(() => {
+    window.queueMicrotask(() => {
+      setSeen(readSeen());
+      setSeenStateReady(true);
+    });
+  }, []);
 
   function openViewer() {
     if (!hasStatuses) return;
@@ -53,7 +61,7 @@ export function BrandLogo({ branding, user, className = "" }: { branding: SiteBr
   }, []);
 
   const inner = (
-    <span className={`brand-logo relative grid shrink-0 place-items-center rounded-full border bg-white transition duration-180 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.08)] active:scale-[0.96] motion-reduce:transition-none ${hasStatuses ? (unseen ? "brand-logo-status-unseen border-black" : "border-[var(--color-border-strong)] ring-2 ring-gray-300") : "border-[var(--color-border)]"} ${className}`}>
+    <span className={`brand-logo relative grid shrink-0 place-items-center rounded-full border bg-white transition duration-180 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.08)] active:scale-[0.96] motion-reduce:transition-none ${hasStatuses ? (!seenStateReady ? "border-[var(--color-border-strong)]" : unseen ? "brand-logo-status-unseen border-black" : "border-[var(--color-border-strong)] ring-2 ring-gray-300") : "border-[var(--color-border)]"} ${className}`}>
       <span className="relative grid h-full w-full place-items-center overflow-hidden rounded-full bg-white">
         {logo ? <Image src={logo} alt={branding.logo_alt_text || branding.site_name} fill sizes="48px" className="object-contain p-1" /> : <span className="px-2 text-sm font-black">{branding.site_name || "eShop"}</span>}
       </span>

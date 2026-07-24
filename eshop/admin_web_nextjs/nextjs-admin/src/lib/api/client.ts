@@ -69,7 +69,7 @@ function jsonBody(body: unknown) {
   return body instanceof FormData ? body : JSON.stringify(body);
 }
 
-export const apiGet = <T>(path: string) => request<T>(path);
+export const apiGet = <T>(path: string, init?: RequestInit) => request<T>(path, init);
 export const apiPost = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "POST", body: jsonBody(body) });
 export const apiPut = <T>(path: string, body?: unknown) =>

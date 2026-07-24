@@ -1,14 +1,12 @@
-import { ProductCard } from "@/components/products/ProductCard";
 import { serverGet } from "@/lib/api/django";
 import type { Paginated, ProductCard as ProductCardType, StoreDetail } from "@/types/storefront";
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { MapPin, Search, Store } from "lucide-react";
+import { MapPin, Store } from "lucide-react";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { FollowButton } from "@/components/stores/FollowButton";
-import { Chip } from "@/components/ui/Chip";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { VerifiedBusinessBadge } from "@/components/store/VerifiedBusinessBadge";
+import { StoreProductsClient } from "@/components/stores/StoreProductsClient";
 
 export default async function StorePage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { slug } = await params;
@@ -42,19 +40,9 @@ export default async function StorePage({ params, searchParams }: { params: Prom
           </div>
           <p className="mt-4 text-sm text-[var(--color-text-secondary)]">{data.store.follower_count} followers · {data.store.product_count} products</p>
           {data.store.address_description ? <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-text-secondary)]">{data.store.address_description}</p> : null}
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {data.store.categories.map((category) => <Chip key={category.id} href={`/stores/${slug}?category=${category.slug}`} active={sp.category === category.slug}>{category.name}</Chip>)}
-          </div>
-          <form className="mt-4 flex gap-2">
-            <label className="relative flex-1">
-              <Search aria-hidden className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-              <input name="search" defaultValue={sp.search || ""} placeholder="Search this store" className="h-11 w-full rounded-full border border-[var(--color-border-strong)] bg-white pl-10 pr-3 text-sm focus:border-[var(--color-text)] focus:outline-none" />
-            </label>
-            <button className="h-11 rounded-full bg-[var(--color-black)] px-4 text-sm font-semibold text-white">Search</button>
-          </form>
+          <StoreProductsClient slug={slug} categories={data.store.categories} initialData={data} initialSearch={sp.search || ""} initialCategory={sp.category || ""} initialSort={sp.sort || "newest"} />
         </div>
       </div>
-      {data.results.length ? <div className="product-grid-two p-3 md:p-4">{data.results.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="p-4"><EmptyState title="No products found in this store" /></div>}
     </section>
   );
 }
