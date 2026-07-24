@@ -100,7 +100,7 @@ class Product(models.Model):
     minimum_order_quantity = models.PositiveIntegerField(default=1)
     unit = models.CharField(max_length=50, blank=True)
     specifications = models.JSONField(default=dict, blank=True)
-    view_360_enabled = models.BooleanField(default=True)
+    view_360_enabled = models.BooleanField(default=False)
     view_360_mode = models.CharField(max_length=20, choices=Viewer360Mode.choices, default=Viewer360Mode.SPIN)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     is_featured = models.BooleanField(default=False)

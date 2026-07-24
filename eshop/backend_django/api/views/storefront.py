@@ -81,6 +81,16 @@ def record_activity(request, action, product=None, trader=None, metadata=None):
 
 
 SHARE_CHANNELS = {"native", "whatsapp", "facebook", "instagram", "email", "copy", "other"}
+ALL_CATEGORY = {
+    "id": 0,
+    "name": "All",
+    "slug": "all",
+    "description": "All products",
+    "icon": "Grid2X2",
+    "image_url": None,
+    "display_order": 0,
+    "is_featured": True,
+}
 
 
 def validate_cart_quantity(product, quantity):
@@ -116,21 +126,29 @@ class StorefrontCategoriesAPIView(APIView):
 
     def get(self, request):
         queryset = ProductCategory.objects.filter(is_active=True).order_by("display_order", "name")
-        return Response(PublicCategorySerializer(queryset, many=True, context={"request": request}).data)
+        categories = [ALL_CATEGORY]
+        categories.extend(PublicCategorySerializer(queryset, many=True, context={"request": request}).data)
+        return Response(categories)
 
 
 class StorefrontCategoryDetailAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, slug):
-        category = get_object_or_404(ProductCategory, slug=slug, is_active=True)
-        record_activity(request, UserActivityLog.Action.CATEGORY_OPEN, metadata={"category": category.slug})
-        queryset = filter_public_products(request, public_products_queryset().filter(category=category))
+        if slug == ALL_CATEGORY["slug"]:
+            category_payload = ALL_CATEGORY
+            record_activity(request, UserActivityLog.Action.CATEGORY_OPEN, metadata={"category": ALL_CATEGORY["slug"], "virtual": True})
+            queryset = filter_public_products(request, public_products_queryset())
+        else:
+            category = get_object_or_404(ProductCategory, slug=slug, is_active=True)
+            category_payload = PublicCategorySerializer(category, context={"request": request}).data
+            record_activity(request, UserActivityLog.Action.CATEGORY_OPEN, metadata={"category": category.slug})
+            queryset = filter_public_products(request, public_products_queryset().filter(category=category))
         paginator = StorefrontPagination()
         page = paginator.paginate_queryset(annotate_products(queryset, request), request)
         return paginator.response_with_extra(
             PublicProductCardSerializer(page, many=True, context={"request": request}).data,
-            category=PublicCategorySerializer(category, context={"request": request}).data,
+            category=category_payload,
         )
 
 
@@ -149,6 +167,9 @@ def filter_public_products(request, queryset):
         queryset = queryset.filter(Q(name__icontains=search) | Q(short_description__icontains=search) | Q(trader__business_name__icontains=search))
         record_activity(request, UserActivityLog.Action.SEARCH, metadata={"query": search})
     if category := params.get("category"):
+        if category.lower() == ALL_CATEGORY["slug"]:
+            category = ""
+    if category:
         queryset = queryset.filter(category__slug=category)
     if store := params.get("store"):
         queryset = queryset.filter(trader__slug=store)

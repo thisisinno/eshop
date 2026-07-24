@@ -1,11 +1,12 @@
 import { serverGet } from "@/lib/api/django";
 import type { Category } from "@/types/storefront";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
+import { withAllCategoryFirst } from "@/lib/storefront/categories";
 import Image from "next/image";
 import Link from "next/link";
 
 export default async function CategoriesPage() {
-  const categories = await serverGet<Category[]>("/storefront/categories/");
+  const categories = withAllCategoryFirst(await serverGet<Category[]>("/storefront/categories/"));
   return (
     <section>
       <div className="border-b border-[var(--color-border)] px-4 py-4">
