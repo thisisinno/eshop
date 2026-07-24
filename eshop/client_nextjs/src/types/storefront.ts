@@ -161,6 +161,7 @@ export type BrandStatus = {
   media_url: string | null;
   media_type: "image" | "video";
   caption: string;
+  display_duration_seconds: number;
   starts_at: string;
   expires_at: string;
   sort_order: number;

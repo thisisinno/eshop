@@ -3,7 +3,7 @@ import uuid
 from decimal import Decimal
 
 from django.conf import settings
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import Q
@@ -324,6 +324,7 @@ class BrandStatus(models.Model):
     media = models.FileField(upload_to=brand_status_upload_path)
     media_type = models.CharField(max_length=10, choices=MediaType.choices)
     caption = models.CharField(max_length=500, blank=True)
+    display_duration_seconds = models.PositiveIntegerField(default=15, validators=[MinValueValidator(1), MaxValueValidator(3600)])
     is_active = models.BooleanField(default=True)
     starts_at = models.DateTimeField(default=timezone.now)
     expires_at = models.DateTimeField(null=True, blank=True)
@@ -345,6 +346,8 @@ class BrandStatus(models.Model):
         return cls.objects.filter(is_active=True, starts_at__lte=now, expires_at__gt=now).order_by("sort_order", "starts_at", "id")
 
     def clean(self):
+        if self.display_duration_seconds < 1 or self.display_duration_seconds > 3600:
+            raise ValidationError({"display_duration_seconds": "Playback duration must be between 1 and 3600 seconds."})
         if self.media:
             extension = os.path.splitext(self.media.name)[1].lower()
             if extension in self.IMAGE_EXTENSIONS:
@@ -372,6 +375,39 @@ class BrandStatus(models.Model):
 
     def __str__(self):
         return f"{self.media_type} status {self.pk or ''}".strip()
+
+
+class BrandStatusView(models.Model):
+    status = models.ForeignKey(BrandStatus, on_delete=models.CASCADE, related_name="views")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE, related_name="brand_status_views")
+    anonymous_viewer_id = models.CharField(max_length=80, null=True, blank=True)
+    first_viewed_at = models.DateTimeField(auto_now_add=True)
+    last_viewed_at = models.DateTimeField(auto_now=True)
+    view_count = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ("-last_viewed_at",)
+        constraints = [
+            models.UniqueConstraint(fields=("status", "user"), condition=Q(user__isnull=False), name="unique_brand_status_user_view"),
+            models.UniqueConstraint(fields=("status", "anonymous_viewer_id"), condition=Q(user__isnull=True, anonymous_viewer_id__isnull=False), name="unique_brand_status_anon_view"),
+        ]
+        indexes = [
+            models.Index(fields=("status", "last_viewed_at")),
+            models.Index(fields=("user", "last_viewed_at")),
+            models.Index(fields=("anonymous_viewer_id", "last_viewed_at")),
+        ]
+
+    def clean(self):
+        if not self.user_id and not self.anonymous_viewer_id:
+            raise ValidationError({"anonymous_viewer_id": "Anonymous viewer ID is required when no user is associated."})
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        viewer = self.user or self.anonymous_viewer_id or "anonymous"
+        return f"{viewer} viewed {self.status_id}"
 
 
 @receiver(post_delete, sender=ProductMedia)

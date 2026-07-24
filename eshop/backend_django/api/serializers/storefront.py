@@ -210,7 +210,7 @@ class BrandStatusPublicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = BrandStatus
-        fields = ("id", "media_url", "media_type", "caption", "starts_at", "expires_at", "sort_order", "updated_at")
+        fields = ("id", "media_url", "media_type", "caption", "display_duration_seconds", "starts_at", "expires_at", "sort_order", "updated_at")
 
     def get_media_url(self, obj):
         return file_url(obj.media, self.context.get("request"))

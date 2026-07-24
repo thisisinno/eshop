@@ -1,6 +1,7 @@
 from django.db.models import BooleanField, Count, Exists, F, OuterRef, Q, Value
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
@@ -8,7 +9,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.models import Cart, CartItem, Product, ProductBookmark, ProductCategory, SiteBranding, StoreFollow, TraderProfile, UserActivityLog, UserNotification
+from api.models import BrandStatus, BrandStatusView, Cart, CartItem, Product, ProductBookmark, ProductCategory, SiteBranding, StoreFollow, TraderProfile, UserActivityLog, UserNotification
 from api.serializers.orders import OrderDetailSerializer, OrderListSerializer
 from api.serializers.storefront import (
     CartItemWriteSerializer, CartSerializer, CustomerOrderCreateSerializer, PublicCategorySerializer,
@@ -223,6 +224,27 @@ class StorefrontBrandingAPIView(APIView):
         return Response(SiteBrandingPublicSerializer(SiteBranding.get_current(), context={"request": request}).data)
 
 
+class StorefrontBrandStatusViewAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, pk):
+        brand_status = get_object_or_404(BrandStatus.active_public(), pk=pk)
+        anonymous_id = str(request.data.get("anonymous_viewer_id") or request.headers.get("X-Anonymous-Viewer") or session_key(request)).strip()[:80]
+        if request.user.is_authenticated:
+            lookup = {"status": brand_status, "user": request.user}
+            defaults = {"anonymous_viewer_id": anonymous_id or None}
+        else:
+            if not anonymous_id:
+                return Response({"anonymous_viewer_id": ["Anonymous viewer ID is required."]}, status=status.HTTP_400_BAD_REQUEST)
+            lookup = {"status": brand_status, "user": None, "anonymous_viewer_id": anonymous_id}
+            defaults = {}
+        view, created = BrandStatusView.objects.get_or_create(**lookup, defaults=defaults)
+        if not created and view.last_viewed_at <= timezone.now() - timezone.timedelta(seconds=30):
+            BrandStatusView.objects.filter(pk=view.pk).update(view_count=F("view_count") + 1, last_viewed_at=timezone.now())
+            view.refresh_from_db(fields=("view_count", "last_viewed_at"))
+        return Response({"recorded": True, "created": created, "view_count": view.view_count})
+
+
 class StorefrontStoresAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -269,9 +291,10 @@ class ProductBookmarkAPIView(APIView):
 
     def post(self, request, pk):
         product = get_object_or_404(public_products_queryset(), pk=pk)
-        ProductBookmark.objects.get_or_create(user=request.user, product=product)
-        record_activity(request, UserActivityLog.Action.BOOKMARK, product=product, trader=product.trader)
-        return Response({"is_bookmarked": True}, status=status.HTTP_201_CREATED)
+        _, created = ProductBookmark.objects.get_or_create(user=request.user, product=product)
+        if created:
+            record_activity(request, UserActivityLog.Action.BOOKMARK, product=product, trader=product.trader)
+        return Response({"is_bookmarked": True, "created": created}, status=status.HTTP_201_CREATED)
 
     def delete(self, request, pk):
         product = get_object_or_404(public_products_queryset(), pk=pk)

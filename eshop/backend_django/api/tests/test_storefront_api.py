@@ -11,7 +11,7 @@ from django.utils import timezone
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from api.models import BrandStatus, Cart, CartItem, Order, Product, ProductBookmark, ProductCategory, ProductMedia, SiteBranding, StoreFollow, TraderProfile, UserActivityLog, UserNotification
+from api.models import BrandStatus, BrandStatusView, Cart, CartItem, Order, Product, ProductBookmark, ProductCategory, ProductMedia, SiteBranding, StoreFollow, TraderProfile, UserActivityLog, UserNotification
 from api.services.notifications import create_activity_notification, notify_admin_of_new_order, sync_order_notification
 from api.services.orders import transition_order
 
@@ -33,6 +33,7 @@ class StorefrontAPITests(TestCase):
         self.staff.user_permissions.add(Permission.objects.get(codename="add_product"))
         self.staff.user_permissions.add(Permission.objects.get(codename="change_sitebranding"))
         self.staff.user_permissions.add(Permission.objects.get(codename="add_brandstatus"))
+        self.staff.user_permissions.add(Permission.objects.get(codename="view_brandstatus"))
 
     def auth(self, user):
         token, _ = Token.objects.get_or_create(user=user)
@@ -95,8 +96,16 @@ class StorefrontAPITests(TestCase):
     def test_product_bookmark_works(self):
         self.auth(self.customer)
         response = self.client.post(f"/api/storefront/products/{self.product.id}/bookmark/")
+        duplicate = self.client.post(f"/api/storefront/products/{self.product.id}/bookmark/")
         self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["created"], True)
+        self.assertEqual(duplicate.status_code, 201)
+        self.assertEqual(duplicate.data["created"], False)
         self.assertEqual(self.product.bookmarks.count(), 1)
+        self.assertEqual(UserActivityLog.objects.filter(user=self.customer, action=UserActivityLog.Action.BOOKMARK, product=self.product).count(), 1)
+        delete = self.client.delete(f"/api/storefront/products/{self.product.id}/bookmark/")
+        self.assertEqual(delete.status_code, 204)
+        self.assertFalse(ProductBookmark.objects.filter(user=self.customer, product=self.product).exists())
 
     def test_bookmark_list_endpoint_auth_visibility_and_privacy(self):
         anonymous = self.client.get("/api/storefront/bookmarks/")
@@ -108,6 +117,7 @@ class StorefrontAPITests(TestCase):
 
         self.client.post(f"/api/storefront/products/{self.product.id}/bookmark/")
         response = self.client.get("/api/storefront/bookmarks/")
+        self.assertEqual(response.data["count"], 1)
         names = [item["name"] for item in response.data["results"]]
         self.assertIn(self.product.name, names)
 
@@ -268,6 +278,53 @@ class StorefrontAPITests(TestCase):
         public = self.client.get("/api/storefront/branding/").data
         self.assertEqual(len(public["statuses"]), 1)
         self.assertEqual(public["statuses"][0]["caption"], "Today")
+        self.assertEqual(public["statuses"][0]["display_duration_seconds"], 15)
+        self.assertNotIn("viewer_count", public["statuses"][0])
+        self.assertNotIn("views", public["statuses"][0])
+
+    def test_status_default_duration_validation_and_active_public_filtering(self):
+        status_item = BrandStatus.objects.create(media=SimpleUploadedFile("status.jpg", b"x", content_type="image/jpeg"))
+        self.assertEqual(status_item.display_duration_seconds, 15)
+        status_item.display_duration_seconds = 0
+        with self.assertRaises(ValidationError):
+            status_item.full_clean()
+        status_item.display_duration_seconds = 3601
+        with self.assertRaises(ValidationError):
+            status_item.full_clean()
+        status_item.is_active = False
+        status_item.display_duration_seconds = 15
+        status_item.save()
+        active = BrandStatus.objects.create(media=SimpleUploadedFile("active.jpg", b"x", content_type="image/jpeg"), display_duration_seconds=30, starts_at=timezone.now() - timezone.timedelta(minutes=1), expires_at=timezone.now() + timezone.timedelta(minutes=1))
+        BrandStatus.objects.create(media=SimpleUploadedFile("future.jpg", b"x", content_type="image/jpeg"), starts_at=timezone.now() + timezone.timedelta(minutes=1))
+        BrandStatus.objects.create(media=SimpleUploadedFile("expired.jpg", b"x", content_type="image/jpeg"), starts_at=timezone.now() - timezone.timedelta(days=2), expires_at=timezone.now() - timezone.timedelta(days=1))
+        BrandStatus.objects.create(media=SimpleUploadedFile("inactive.jpg", b"x", content_type="image/jpeg"), is_active=False)
+        self.assertEqual(list(BrandStatus.active_public().values_list("id", flat=True)), [active.id])
+
+    def test_status_view_tracking_authenticated_anonymous_and_admin_viewers(self):
+        active = BrandStatus.objects.create(media=SimpleUploadedFile("active.jpg", b"x", content_type="image/jpeg"), starts_at=timezone.now() - timezone.timedelta(minutes=1), expires_at=timezone.now() + timezone.timedelta(minutes=1))
+        response = self.client.post(f"/api/storefront/statuses/{active.id}/view/", {"anonymous_viewer_id": "anon-1"}, format="json")
+        repeat = self.client.post(f"/api/storefront/statuses/{active.id}/view/", {"anonymous_viewer_id": "anon-1"}, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(repeat.status_code, 200)
+        self.assertEqual(BrandStatusView.objects.filter(status=active, anonymous_viewer_id="anon-1").count(), 1)
+        self.assertEqual(BrandStatusView.objects.get(status=active, anonymous_viewer_id="anon-1").view_count, 1)
+
+        self.auth(self.customer)
+        user_response = self.client.post(f"/api/storefront/statuses/{active.id}/view/", {}, format="json")
+        self.assertEqual(user_response.status_code, 200)
+        self.assertEqual(BrandStatusView.objects.filter(status=active, user=self.customer).count(), 1)
+        self.assertEqual(BrandStatusView.objects.filter(status=active).count(), 2)
+
+        self.auth(self.customer)
+        self.assertEqual(self.client.get(f"/api/site/statuses/{active.id}/viewers/").status_code, 403)
+        self.auth(self.staff)
+        viewers = self.client.get(f"/api/site/statuses/{active.id}/viewers/")
+        self.assertEqual(viewers.status_code, 200)
+        self.assertEqual(len(viewers.data), 2)
+        self.assertTrue(any(item["viewer_type"] == "user" for item in viewers.data))
+        status_list = self.client.get("/api/site/statuses/")
+        status_payload = next(item for item in status_list.data if item["id"] == active.id)
+        self.assertEqual(status_payload["viewer_count"], 2)
 
     def test_order_notifications_lifecycle_and_cart_clear(self):
         admin = User.objects.create_superuser(username="order-admin", password="password123")

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Check, Loader2, Plus, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { IconButton } from "@/components/ui/IconButton";
+import { useMyList } from "@/components/bookmarks/MyListProvider";
 import { useCart } from "@/components/cart/CartProvider";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
 import type { Cart } from "@/types/storefront";
@@ -13,28 +14,35 @@ import { parseApiError } from "@/lib/api/errors";
 export function BookmarkButton({ productId, initialBookmarked, compact = false }: { productId: number; initialBookmarked: boolean; compact?: boolean }) {
   const router = useRouter();
   const { refreshUnreadCount } = useNotifications();
-  const [bookmarked, setBookmarked] = useState(initialBookmarked);
+  const { isBookmarked, setBookmarked } = useMyList();
   const [loading, setLoading] = useState(false);
+  const bookmarked = isBookmarked(productId, initialBookmarked);
   async function toggle() {
     const next = !bookmarked;
-    setBookmarked(next);
+    setBookmarked(productId, next, { removed: false });
     setLoading(true);
     const response = await fetch(`/api/storefront/products/${productId}/bookmark/`, { method: next ? "POST" : "DELETE" });
     setLoading(false);
     if (response.status === 401) {
-      setBookmarked(!next);
+      setBookmarked(productId, !next, { removed: false });
       toast.error("Sign in to use My List.");
       router.push("/auth/sign-in");
       return;
     }
     if (!response.ok) {
-      setBookmarked(!next);
+      setBookmarked(productId, !next, { removed: false });
       toast.error("Could not update My List.");
       return;
     }
-    toast.success(next ? "Added to My List" : "Removed from My List");
+    if (next) {
+      const payload = await response.json().catch(() => ({ created: true })) as { created?: boolean };
+      setBookmarked(productId, true, { created: Boolean(payload.created) });
+      toast.success(payload.created ? "Added to My List" : "Already added");
+    } else {
+      setBookmarked(productId, false, { removed: true });
+      toast.success("Removed from My List");
+    }
     void refreshUnreadCount();
-    router.refresh();
   }
   return (
     <IconButton aria-label={bookmarked ? "Remove from My List" : "Add to My List"} active={bookmarked} disabled={loading} onClick={toggle} className={compact ? "h-9 w-9 bg-white/95" : undefined}>
@@ -77,7 +85,7 @@ export function CartAction({
   async function add() {
     if (unavailable || loading) return;
     if (inCart) {
-      router.push("/cart");
+      toast.info("Already in cart");
       return;
     }
     setLoading(true);
@@ -98,9 +106,9 @@ export function CartAction({
     }
     const cart = await response.json() as Cart;
     setCartState(cart);
+    toast.success(`${productName} added to cart`);
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 520);
-    router.refresh();
   }
 
   const dimensions = size === "large" ? "h-12 w-12" : "h-9 w-9";

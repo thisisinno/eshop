@@ -7,7 +7,7 @@ from api.views.registration import (AgreementActionAPIView, AgreementDetailAPIVi
 from api.views.users import (PermissionsAPIView, RoleDetailAPIView, RolesAPIView, UserActionAPIView,
     UserDetailAPIView, UsersAPIView)
 from api.views.catalog import (CategoriesAPIView, CategoryDetailAPIView, ProductActionAPIView,
-    BrandStatusDetailAPIView, BrandStatusesAPIView, ProductDetailAPIView, ProductMediaAPIView, ProductMediaDetailAPIView,
+    BrandStatusDetailAPIView, BrandStatusesAPIView, BrandStatusViewersAPIView, ProductDetailAPIView, ProductMediaAPIView, ProductMediaDetailAPIView,
     ProductMediaPrimaryAPIView, ProductsAPIView, SiteBrandingAPIView)
 from api.views.logs import AdminActivityLogsAPIView, ProductInteractionAPIView, SystemRequestLogsAPIView, UserActivityLogsAPIView
 from api.views.orders import OrderActionAPIView, OrderDetailAPIView, OrdersAPIView
@@ -16,7 +16,7 @@ from api.views.storefront import (
     MyOrderDetailAPIView, MyOrdersAPIView, ProductBookmarkAPIView, ProductBookmarksAPIView, StoreFollowAPIView,
     StorefrontNotificationDetailAPIView, StorefrontNotificationReadAllAPIView, StorefrontNotificationReadAPIView,
     StorefrontNotificationUnreadCountAPIView, StorefrontNotificationsAPIView,
-    StorefrontBrandingAPIView,
+    StorefrontBrandingAPIView, StorefrontBrandStatusViewAPIView,
     StorefrontCategoriesAPIView, StorefrontCategoryDetailAPIView, StorefrontHomeAPIView,
     StorefrontProductDetailAPIView, StorefrontProductShareAPIView, StorefrontProductsAPIView, StorefrontStoreDetailAPIView,
     StorefrontStoresAPIView,
@@ -40,11 +40,13 @@ urlpatterns = [
     path("site/branding/", SiteBrandingAPIView.as_view()),
     path("site/statuses/", BrandStatusesAPIView.as_view()),
     path("site/statuses/<int:pk>/", BrandStatusDetailAPIView.as_view()),
+    path("site/statuses/<int:pk>/viewers/", BrandStatusViewersAPIView.as_view()),
     path("orders/", OrdersAPIView.as_view()), path("orders/<int:pk>/", OrderDetailAPIView.as_view()), path("orders/<int:pk>/<str:action>/", OrderActionAPIView.as_view()),
     path("logs/user-activity/", UserActivityLogsAPIView.as_view()), path("logs/admin-activity/", AdminActivityLogsAPIView.as_view()), path("logs/system/", SystemRequestLogsAPIView.as_view()),
     path("track/product-interaction/", ProductInteractionAPIView.as_view()),
     path("storefront/home/", StorefrontHomeAPIView.as_view()),
     path("storefront/branding/", StorefrontBrandingAPIView.as_view()),
+    path("storefront/statuses/<int:pk>/view/", StorefrontBrandStatusViewAPIView.as_view()),
     path("storefront/categories/", StorefrontCategoriesAPIView.as_view()),
     path("storefront/categories/<slug:slug>/", StorefrontCategoryDetailAPIView.as_view()),
     path("storefront/products/", StorefrontProductsAPIView.as_view()),

@@ -1,4 +1,4 @@
-from django.db.models import F, Q
+from django.db.models import Count, F, Q, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers, status
@@ -6,9 +6,9 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.models import BrandStatus, Product, ProductCategory, ProductMedia, SiteBranding
+from api.models import BrandStatus, BrandStatusView, Product, ProductCategory, ProductMedia, SiteBranding
 from api.permissions import HasModulePermission
-from api.serializers.catalog import BrandStatusSerializer, SiteBrandingSerializer
+from api.serializers.catalog import BrandStatusSerializer, BrandStatusViewSerializer, SiteBrandingSerializer
 from api.serializers import ProductCategorySerializer, ProductDetailSerializer, ProductListSerializer, ProductMediaSerializer, ProductWriteSerializer
 from api.views.logs import record_admin_activity
 
@@ -230,10 +230,10 @@ class BrandStatusesAPIView(PermissionedCatalogAPIView):
     permission_map = {"GET": "api.view_brandstatus", "POST": "api.add_brandstatus"}
 
     def get(self, request):
-        queryset = BrandStatus.objects.all()
+        queryset = BrandStatus.objects.annotate(viewer_count=Count("views", distinct=True), total_views=Sum("views__view_count")).all()
         bucket = request.query_params.get("bucket")
         if bucket == "active":
-            queryset = BrandStatus.active_public()
+            queryset = BrandStatus.active_public().annotate(viewer_count=Count("views", distinct=True), total_views=Sum("views__view_count"))
         elif bucket == "scheduled":
             queryset = queryset.filter(starts_at__gt=timezone.now()).order_by("starts_at", "id")
         elif bucket == "expired":
@@ -273,3 +273,12 @@ class BrandStatusDetailAPIView(PermissionedCatalogAPIView):
         record_admin_activity(request, "site", "status_delete", brand_status, status.HTTP_204_NO_CONTENT)
         brand_status.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class BrandStatusViewersAPIView(PermissionedCatalogAPIView):
+    permission_map = {"GET": "api.view_brandstatus"}
+
+    def get(self, request, pk):
+        brand_status = get_object_or_404(BrandStatus, pk=pk)
+        viewers = BrandStatusView.objects.filter(status=brand_status).select_related("user").order_by("-last_viewed_at")
+        return Response(BrandStatusViewSerializer(viewers, many=True, context={"request": request}).data)

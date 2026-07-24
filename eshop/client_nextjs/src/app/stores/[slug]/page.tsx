@@ -3,11 +3,12 @@ import { serverGet } from "@/lib/api/django";
 import type { Paginated, ProductCard as ProductCardType, StoreDetail } from "@/types/storefront";
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import { CheckCircle2, MapPin, Search, Store } from "lucide-react";
+import { MapPin, Search, Store } from "lucide-react";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { FollowButton } from "@/components/stores/FollowButton";
 import { Chip } from "@/components/ui/Chip";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { VerifiedBusinessBadge } from "@/components/store/VerifiedBusinessBadge";
 
 export default async function StorePage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { slug } = await params;
@@ -33,7 +34,7 @@ export default async function StorePage({ params, searchParams }: { params: Prom
                 {logo ? <Image src={logo} alt={`${data.store.business_name} logo`} fill sizes="80px" className="object-cover" /> : <Store aria-hidden className="h-8 w-8 text-[var(--color-text)]" />}
               </div>
               <div className="pb-1">
-                <h1 className="flex items-center gap-2 text-2xl font-black md:text-3xl">{data.store.business_name}{data.store.is_verified ? <CheckCircle2 aria-label="Verified" className="h-5 w-5 text-[var(--color-text)]" /> : null}</h1>
+                <h1 className="flex items-center gap-2 text-2xl font-black md:text-3xl">{data.store.business_name}{data.store.is_verified ? <VerifiedBusinessBadge className="h-5 w-5" /> : null}</h1>
                 <p className="mt-1 inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]"><MapPin aria-hidden className="h-4 w-4" />{data.store.location_summary || "Location not listed"}</p>
               </div>
             </div>

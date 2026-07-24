@@ -7,17 +7,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Check,
-  CheckCircle2,
-  ChevronsUp,
   Ellipsis,
   Home,
-  List,
   LogIn,
   LogOut,
   Package,
   Plus,
   Search,
-  Settings,
   ShoppingBag,
   Store,
   User as UserIcon,
@@ -25,22 +21,23 @@ import {
 } from "lucide-react";
 import type { Cart, ProductCard, SiteBranding, StoreSummary, User } from "@/types/storefront";
 import { ButtonLink } from "@/components/ui/Button";
+import { useMyList } from "@/components/bookmarks/MyListProvider";
 import { useCart } from "@/components/cart/CartProvider";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
+import { VerifiedBusinessBadge } from "@/components/store/VerifiedBusinessBadge";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { BrandLogo } from "./BrandLogo";
 
 const primaryNav = [
   { label: "Home", href: "/", Icon: Home },
-  { label: "Search", href: "/search", Icon: Search },
+  { label: "My List", href: "/saved", Icon: Check },
   { label: "Notifications", href: "/notifications", Icon: Bell },
-  { label: "Profile", href: "/profile", Icon: UserIcon },
 ] as const;
 
 const mobileNav = [
   { label: "Home", href: "/", Icon: Home },
+  { label: "My List", href: "/saved", Icon: Check },
   { label: "Notifications", href: "/notifications", Icon: Bell },
-  { label: "Profile", href: "/profile", Icon: UserIcon },
 ] as const;
 
 function initials(user: User | null) {
@@ -91,12 +88,10 @@ export function Header({ branding, user }: { branding: SiteBranding; user: User 
 function moreItems(canPost: boolean) {
   return [
     { href: "/search", label: "Search", Icon: Search },
-    { href: "/categories", label: "Categories", Icon: List },
-    { href: "/saved", label: "My List", Icon: Check },
+    { href: "/profile", label: "Profile", Icon: UserIcon },
     { href: "/orders", label: "Orders", Icon: Package },
     { href: "/cart", label: "Cart", Icon: ShoppingBag },
     { href: "/search?tab=stores", label: "Stores", Icon: Store },
-    { href: "/profile", label: "Settings", Icon: Settings },
     ...(canPost ? [{ href: "/post/product", label: "Post product", Icon: Plus }] : []),
   ];
 }
@@ -117,8 +112,7 @@ function MoreMenuButton({ user, canPost, className, labelClassName = "hidden tex
 export function LeftNav({ user, canPost, branding }: { user: User | null; canPost: boolean; branding: SiteBranding }) {
   const pathname = usePathname();
   const { unreadCount } = useNotifications();
-  const [expanded, setExpanded] = useState(false);
-  const items = useMemo(() => moreItems(canPost), [canPost]);
+  const { count: myListCount } = useMyList();
   return (
     <aside className="fixed left-0 top-0 z-30 hidden h-screen bg-white md:block md:w-[78px] xl:w-[260px] 2xl:w-[275px]">
       <div className="ml-auto flex h-full w-[78px] flex-col gap-2 border-r border-[var(--color-border)] p-3 xl:w-[250px] xl:border-r-0">
@@ -126,12 +120,11 @@ export function LeftNav({ user, canPost, branding }: { user: User | null; canPos
           <BrandLogo branding={branding} user={user} className="h-12 w-12" />
         </div>
         {primaryNav.map(({ label, href, Icon }) => {
-          const target = label === "Profile" && !user ? "/auth/sign-in" : href;
           const active = isActive(pathname, href);
           return (
-            <Link key={href} href={target} aria-label={label} className={`relative flex h-12 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4 ${active ? "font-black" : "font-medium"}`}>
-              {label === "Notifications" ? (
-                <IconWithBadge count={unreadCount}>
+            <Link key={href} href={href} aria-label={label} className={`relative flex h-12 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4 ${active ? "font-black" : "font-medium"}`}>
+              {label === "Notifications" || label === "My List" ? (
+                <IconWithBadge count={label === "Notifications" ? unreadCount : myListCount}>
                   <Icon aria-hidden className="h-6 w-6" strokeWidth={active ? 2.7 : 2.1} />
                 </IconWithBadge>
               ) : <Icon aria-hidden className="h-6 w-6" strokeWidth={active ? 2.7 : 2.1} />}
@@ -139,15 +132,7 @@ export function LeftNav({ user, canPost, branding }: { user: User | null; canPos
             </Link>
           );
         })}
-        <button type="button" onClick={() => setExpanded((current) => !current)} aria-expanded={expanded} className="flex h-12 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4 xl:text-xl">
-          {expanded ? <ChevronsUp aria-hidden className="h-5 w-5" /> : <Ellipsis aria-hidden className="h-5 w-5" strokeWidth={2.2} />}
-          <span className="hidden text-base xl:inline">{expanded ? "Swipe up" : "More"}</span>
-        </button>
-        <div className={`min-h-0 overflow-hidden transition-all duration-180 ${expanded ? "max-h-[34vh] border-y border-[var(--color-border)] py-2" : "max-h-0"}`}>
-          <nav className="flex max-h-[34vh] min-h-0 flex-col gap-1 overflow-y-auto pr-1">
-            {items.map(({ href, label, Icon }) => <Link key={href} href={href} aria-label={label} className="flex h-11 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4"><Icon aria-hidden className="h-5 w-5" /><span className="hidden xl:inline">{label}</span></Link>)}
-          </nav>
-        </div>
+        <MoreMenuButton user={user} canPost={canPost} className="flex h-12 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4 xl:text-xl" labelClassName="hidden text-xl xl:inline" />
         {canPost ? (
           <ButtonLink href="/post/product" className="mt-3 h-12 w-12 p-0 xl:w-[210px] xl:px-5" aria-label="Post product">
             <Plus aria-hidden className="h-5 w-5" /><span className="hidden xl:inline">Post product</span>
@@ -168,19 +153,19 @@ export function LeftNav({ user, canPost, branding }: { user: User | null; canPos
 export function BottomNav({ user, canPost }: { user: User | null; canPost: boolean }) {
   const pathname = usePathname();
   const { unreadCount } = useNotifications();
+  const { count: myListCount } = useMyList();
   const suppressFab = pathname === "/cart" || pathname === "/checkout" || pathname.startsWith("/checkout/");
   return (
     <>
-      {canPost && !suppressFab ? <Link aria-label="Post product" href="/post/product" className="fixed bottom-[calc(86px+env(safe-area-inset-bottom))] right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-[var(--color-black)] text-white transition active:scale-[0.97] md:hidden"><Plus aria-hidden className="h-7 w-7" /></Link> : null}
+      {canPost && !suppressFab ? <Link aria-label="Post product" href="/post/product" className="fixed bottom-[calc(86px+env(safe-area-inset-bottom))] right-5 z-50 grid h-14 w-14 place-items-center rounded-full bg-black text-white transition hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black active:scale-[0.97] md:hidden"><Plus aria-hidden className="h-7 w-7 text-white" /></Link> : null}
       <nav className="fixed inset-x-0 bottom-0 z-40 grid h-[76px] grid-cols-4 border-t border-[var(--color-border)] bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {mobileNav.map(({ label, href, Icon }) => {
-          const target = label === "Profile" && !user ? "/auth/sign-in" : href;
           const active = isActive(pathname, href);
           return (
-            <Link key={href} href={target} className={`relative flex min-h-11 flex-col items-center justify-center gap-1 text-xs transition active:scale-[0.97] ${active ? "font-black text-[var(--color-text)]" : "font-semibold text-[var(--color-text-secondary)]"}`}>
+            <Link key={href} href={href} className={`relative flex min-h-11 flex-col items-center justify-center gap-1 text-xs transition active:scale-[0.97] ${active ? "font-black text-[var(--color-text)]" : "font-semibold text-[var(--color-text-secondary)]"}`}>
               <span className={`absolute top-1 h-1 w-5 rounded-full bg-[var(--color-black)] transition ${active ? "opacity-100" : "opacity-0"}`} />
-              {label === "Notifications" ? (
-                <IconWithBadge count={unreadCount}>
+              {label === "Notifications" || label === "My List" ? (
+                <IconWithBadge count={label === "Notifications" ? unreadCount : myListCount}>
                   <Icon aria-hidden className="h-5 w-5" strokeWidth={active ? 2.7 : 2.1} />
                 </IconWithBadge>
               ) : <Icon aria-hidden className="h-5 w-5" strokeWidth={active ? 2.7 : 2.1} />}
@@ -263,7 +248,7 @@ export function RightRail({ stores, recent, cart }: { stores: StoreSummary[]; re
                     {logo ? <Image src={logo} alt="" fill sizes="40px" className="object-cover" /> : <Store aria-hidden className="h-5 w-5" />}
                   </span>
                   <span className="min-w-0">
-                    <span className="flex items-center gap-1 truncate text-sm font-bold">{store.business_name}{store.is_verified ? <CheckCircle2 aria-label="Verified" className="h-3.5 w-3.5 text-[var(--color-text)]" /> : null}</span>
+                    <span className="flex items-center gap-1 truncate text-sm font-bold">{store.business_name}{store.is_verified ? <VerifiedBusinessBadge className="h-3.5 w-3.5" /> : null}</span>
                     <span className="block text-xs text-[var(--color-text-secondary)]">{store.product_count} products</span>
                   </span>
                 </Link>

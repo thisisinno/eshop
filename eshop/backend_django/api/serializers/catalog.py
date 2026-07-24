@@ -5,7 +5,7 @@ from urllib.parse import urljoin
 from django.conf import settings
 from rest_framework import serializers
 
-from api.models import BrandStatus, Product, ProductCategory, ProductMedia, SiteBranding, TraderBranch
+from api.models import BrandStatus, BrandStatusView, Product, ProductCategory, ProductMedia, SiteBranding, TraderBranch
 
 
 def product_media_file_url(file, request=None):
@@ -213,15 +213,46 @@ class ProductWriteSerializer(serializers.ModelSerializer):
 
 class BrandStatusSerializer(serializers.ModelSerializer):
     media_url = serializers.SerializerMethodField()
+    viewer_count = serializers.SerializerMethodField()
+    total_views = serializers.SerializerMethodField()
 
     class Meta:
         model = BrandStatus
-        fields = ("id", "media", "media_url", "media_type", "caption", "is_active", "starts_at", "expires_at", "sort_order", "created_by", "created_at", "updated_at")
-        read_only_fields = ("id", "media_url", "created_by", "created_at", "updated_at")
+        fields = (
+            "id", "media", "media_url", "media_type", "caption", "display_duration_seconds", "is_active",
+            "starts_at", "expires_at", "sort_order", "viewer_count", "total_views", "created_by", "created_at", "updated_at",
+        )
+        read_only_fields = ("id", "media_url", "viewer_count", "total_views", "created_by", "created_at", "updated_at")
         extra_kwargs = {"media_type": {"required": False}, "expires_at": {"required": False}}
 
     def get_media_url(self, obj):
         return product_media_file_url(obj.media, self.context.get("request"))
+
+    def get_viewer_count(self, obj):
+        annotated = getattr(obj, "viewer_count", None)
+        return annotated if annotated is not None else obj.views.count()
+
+    def get_total_views(self, obj):
+        annotated = getattr(obj, "total_views", None)
+        return annotated if annotated is not None else sum(view.view_count for view in obj.views.all())
+
+
+class BrandStatusViewSerializer(serializers.ModelSerializer):
+    viewer_name = serializers.SerializerMethodField()
+    viewer_type = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BrandStatusView
+        fields = ("id", "viewer_name", "viewer_type", "first_viewed_at", "last_viewed_at", "view_count")
+
+    def get_viewer_name(self, obj):
+        if obj.user_id:
+            full_name = obj.user.get_full_name().strip()
+            return full_name or obj.user.get_username()
+        return "Anonymous viewer"
+
+    def get_viewer_type(self, obj):
+        return "user" if obj.user_id else "anonymous"
 
 
 class SiteBrandingSerializer(serializers.ModelSerializer):

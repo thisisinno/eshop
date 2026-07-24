@@ -9,6 +9,7 @@ import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { CartAction, BookmarkButton } from "./ProductActions";
 import { IconButton } from "@/components/ui/IconButton";
 import { ProductQuickView } from "./ProductQuickView";
+import { VerifiedBusinessBadge } from "@/components/store/VerifiedBusinessBadge";
 
 const money = (amount: string, currency: string) => `${currency} ${Number(amount).toLocaleString()}`;
 
@@ -34,7 +35,10 @@ export function ProductCard({ product, variant = "discovery" }: { product: Produ
           </Link>
         </div>
         <div className="flex min-h-[118px] flex-1 flex-col pt-2">
-          <Link href={`/stores/${product.store.slug}`} className="line-clamp-1 text-[11px] font-bold uppercase text-[var(--color-text-secondary)] hover:underline">{product.store.business_name}</Link>
+          <Link href={`/stores/${product.store.slug}`} className="flex min-h-4 items-center gap-1 text-[11px] font-bold uppercase text-[var(--color-text-secondary)] hover:underline">
+            <span className="truncate">{product.store.business_name}</span>
+            {product.store.is_verified ? <VerifiedBusinessBadge className="h-3.5 w-3.5" /> : null}
+          </Link>
           <Link href={`/products/${product.id}`} className="line-clamp-2 mt-1 h-10 text-[14px] font-black leading-5">{product.name}</Link>
           <div className="mt-2 flex min-h-5 flex-wrap items-baseline gap-x-2 gap-y-1">
             <span className="text-[14px] font-black">{money(product.price, product.currency)}</span>
