@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Bell,
@@ -22,7 +22,6 @@ import {
   X,
 } from "lucide-react";
 import type { Cart, ProductCard, SiteBranding, StoreSummary, User } from "@/types/storefront";
-import { ButtonLink } from "@/components/ui/Button";
 import { useMyList } from "@/components/bookmarks/MyListProvider";
 import { useCart } from "@/components/cart/CartProvider";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
@@ -70,17 +69,23 @@ function IconWithBadge({ children, count }: { children: React.ReactNode; count: 
 }
 
 function NavigationAction({
-  href, label, Icon, count = 0, className = "", iconClassName = "h-5 w-5", showLabel = false, onNavigate,
+  href, label, Icon, count = 0, className = "", iconClassName = "h-5 w-5", showLabel = false,
+  labelClassName = "text-[10px] leading-none", onNavigate,
 }: {
   href: string; label: string; Icon: React.ComponentType<{ className?: string; strokeWidth?: number; "aria-hidden"?: boolean }>;
-  count?: number; className?: string; iconClassName?: string; showLabel?: boolean; onNavigate?: () => void;
+  count?: number; className?: string; iconClassName?: string; showLabel?: boolean; labelClassName?: string; onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [requested, setRequested] = useState(false);
   const [complete, setComplete] = useState(false);
-  const active = isActive(pathname, href.split("?")[0]);
+  const [targetPath, targetQuery] = href.split("?");
+  const active = isActive(pathname, targetPath)
+    && (targetQuery
+      ? Array.from(new URLSearchParams(targetQuery)).every(([key, value]) => searchParams.get(key) === value)
+      : !(targetPath === "/search" && searchParams.get("tab") === "stores"));
 
   useEffect(() => {
     if (!requested || !active) return;
@@ -88,12 +93,26 @@ function NavigationAction({
       setRequested(false);
       setComplete(true);
     }, 0);
-    const reset = window.setTimeout(() => setComplete(false), 280);
-    return () => {
-      window.clearTimeout(confirmation);
-      window.clearTimeout(reset);
-    };
+    return () => window.clearTimeout(confirmation);
   }, [active, requested]);
+
+  useEffect(() => {
+    if (!complete) return;
+    const reset = window.setTimeout(() => setComplete(false), 2000);
+    return () => window.clearTimeout(reset);
+  }, [complete]);
+
+  useEffect(() => {
+    if (active) return;
+    const reset = window.setTimeout(() => setComplete(false), 0);
+    return () => window.clearTimeout(reset);
+  }, [active]);
+
+  useEffect(() => {
+    if (!requested) return;
+    const failSafe = window.setTimeout(() => setRequested(false), 10000);
+    return () => window.clearTimeout(failSafe);
+  }, [requested]);
 
   function navigate(event: React.MouseEvent<HTMLAnchorElement>) {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -115,12 +134,12 @@ function NavigationAction({
       aria-label={label}
       title={label}
       aria-current={active ? "page" : undefined}
-      aria-disabled={requested || isPending}
+      aria-busy={requested || isPending || undefined}
       onClick={navigate}
-      className={`navigation-action ${active ? "font-black text-[var(--color-text)]" : "font-semibold text-[var(--color-text-secondary)]"} ${className}`}
+      className={`navigation-action ${active ? "bg-[var(--color-primary-soft)] font-black text-[var(--color-text)]" : "font-semibold text-[var(--color-text-secondary)]"} ${className}`}
     >
       {count > 0 ? <IconWithBadge count={count}>{feedback}</IconWithBadge> : feedback}
-      {showLabel ? <span className="max-w-full truncate text-[10px] leading-none">{label}</span> : null}
+      {showLabel ? <span className={`max-w-full truncate ${labelClassName}`}>{label}</span> : null}
     </Link>
   );
 }
@@ -174,24 +193,19 @@ export function LeftNav({ user, canPost, branding }: { user: User | null; canPos
   const { count: myListCount } = useMyList();
   const { count: cartCount } = useCart();
   return (
-    <aside className="fixed left-0 top-0 z-30 hidden h-screen w-[88px] bg-white md:block">
-      <div className="flex h-full min-h-0 w-[88px] flex-col items-center gap-2 border-r border-[var(--color-border)] px-3 py-3">
-        <div className="mb-2 flex h-12 items-center justify-center">
+    <aside className="fixed left-0 top-0 z-30 hidden h-screen w-[var(--desktop-nav-width)] bg-white md:block">
+      <div className="flex h-full min-h-0 w-full flex-col gap-2 border-r border-[var(--color-border)] px-2 py-3">
+        <div className="mb-2 flex h-12 shrink-0 items-center justify-center">
           <BrandLogo branding={branding} user={user} className="h-12 w-12" />
         </div>
-        <nav className="flex min-h-0 flex-col items-center gap-1">
+        <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
         {primaryNav.map(({ label, href, Icon }) => {
           const count = label === "Notifications" ? unreadCount : label === "My List" ? myListCount : label === "Cart" ? cartCount : 0;
-          return <NavigationAction key={href} href={href} label={label} Icon={Icon} count={count} showLabel iconClassName="h-5.5 w-5.5" className="relative flex h-[58px] w-[72px] flex-col items-center justify-center gap-1 rounded-xl hover:bg-[var(--color-primary-soft)]" />;
+          return <NavigationAction key={href} href={href} label={label} Icon={Icon} count={count} showLabel labelClassName="text-xs leading-tight" iconClassName="h-5.5 w-5.5 shrink-0" className="relative flex min-h-12 w-full items-center justify-start gap-2 rounded-xl px-3 hover:bg-[var(--color-primary-soft)]" />;
         })}
         <DesktopMoreNavigation user={user} canPost={canPost} pathname={pathname} />
         </nav>
-        {canPost ? (
-          <ButtonLink href="/post/product" className="mt-3 h-12 w-12 p-0" aria-label="Post product" title="Post product">
-            <Plus aria-hidden className="h-5 w-5" />
-          </ButtonLink>
-        ) : null}
-        <Link href={user ? "/profile" : "/auth/sign-in"} aria-label={user ? "Profile" : "Sign in"} title={user ? "Profile" : "Sign in"} className="mt-auto flex min-h-12 items-center justify-center rounded-full p-1 text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)]">
+        <Link href={user ? "/profile" : "/auth/sign-in"} aria-label={user ? "Profile" : "Sign in"} title={user ? "Profile" : "Sign in"} className="flex min-h-12 shrink-0 items-center justify-center rounded-full p-1 text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)]">
           <span className="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-primary-soft)] text-sm font-black">{initials(user) || <UserIcon aria-hidden className="h-5 w-5" />}</span>
         </Link>
       </div>
@@ -217,7 +231,7 @@ export function BottomNav({ user, canPost }: { user: User | null; canPost: boole
       <nav className="fixed inset-x-0 bottom-0 z-40 grid h-[76px] grid-cols-4 border-t border-[var(--color-border)] bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {mobileNav.map(({ label, href, Icon }) => {
           const count = label === "Notifications" ? unreadCount : label === "My List" ? myListCount : 0;
-          return <NavigationAction key={href} href={href} label={label} Icon={Icon} count={count} showLabel className="relative flex min-h-11 flex-col items-center justify-center gap-1 text-xs" />;
+          return <NavigationAction key={href} href={href} label={label} Icon={Icon} count={count} showLabel labelClassName="text-xs leading-none" className="relative flex min-h-11 flex-col items-center justify-center gap-1 text-xs" />;
         })}
         <MoreMenuButton user={user} canPost={canPost} className="relative flex min-h-11 flex-col items-center justify-center gap-1 text-xs font-semibold text-[var(--color-text-secondary)] transition active:scale-[0.97]" labelClassName="text-xs" />
       </nav>
@@ -227,10 +241,15 @@ export function BottomNav({ user, canPost }: { user: User | null; canPost: boole
 
 function DesktopMoreNavigation({ user, canPost, pathname }: { user: User | null; canPost: boolean; pathname: string }) {
   const [open, setOpen] = useState(false);
+  const searchParams = useSearchParams();
   const items = useMemo(() => moreItems(canPost).filter((item) => item.href !== "/search"), [canPost]);
-  const moreActive = items.some((item) => !item.href.startsWith("/search?") && isActive(pathname, item.href.split("?")[0]));
+  const moreActive = items.some((item) => {
+    const [itemPath, itemQuery] = item.href.split("?");
+    return isActive(pathname, itemPath)
+      && (!itemQuery || Array.from(new URLSearchParams(itemQuery)).every(([key, value]) => searchParams.get(key) === value));
+  });
   return (
-    <div className="relative min-h-0">
+    <div className="min-h-0">
       <button
         type="button"
         aria-expanded={open}
@@ -238,20 +257,20 @@ function DesktopMoreNavigation({ user, canPost, pathname }: { user: User | null;
         aria-label={open ? "Collapse more navigation" : "Expand more navigation"}
         onClick={() => setOpen((value) => !value)}
         title={open ? "Close More" : "More"}
-        className={`navigation-action flex h-[58px] w-[72px] flex-col items-center justify-center gap-1 rounded-xl text-[var(--color-text)] hover:bg-[var(--color-primary-soft)] ${open || moreActive ? "bg-[var(--color-primary-soft)] font-black" : "font-medium"}`}
+        className={`navigation-action flex min-h-12 w-full items-center justify-start gap-2 rounded-xl px-3 text-[var(--color-text)] hover:bg-[var(--color-primary-soft)] ${open || moreActive ? "bg-[var(--color-primary-soft)] font-black" : "font-semibold text-[var(--color-text-secondary)]"}`}
       >
         <Ellipsis aria-hidden className="h-5.5 w-5.5" strokeWidth={open ? 2.7 : 2.2} />
-        <span className="text-[10px] leading-none">More</span>
+        <span className="text-xs leading-tight">More</span>
       </button>
       <div
         id="desktop-more-navigation"
-        className={`absolute left-[76px] top-0 w-52 rounded-xl border border-[var(--color-border)] bg-white p-2 shadow-lg transition duration-180 motion-reduce:transition-none ${open ? "visible translate-x-0 opacity-100" : "invisible -translate-x-1 opacity-0"}`}
+        className={`grid transition-[grid-template-rows,opacity] duration-180 motion-reduce:transition-none ${open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}
       >
-        <div>
-          <div className="max-h-[60vh] space-y-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+        <div className="overflow-hidden">
+          <div className="space-y-1 pt-1">
             {items.map(({ href, label, Icon }) => {
               return (
-                <NavigationAction key={href} href={href} label={label} Icon={Icon} iconClassName="h-4.5 w-4.5" className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-[var(--color-primary-soft)]" />
+                <NavigationAction key={href} href={href} label={label} Icon={Icon} showLabel labelClassName="text-xs leading-tight" iconClassName="h-4.5 w-4.5 shrink-0" className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 hover:bg-[var(--color-primary-soft)]" />
               );
             })}
             {user ? (
@@ -259,7 +278,7 @@ function DesktopMoreNavigation({ user, canPost, pathname }: { user: User | null;
                 <button className="navigation-action flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-soft)]"><LogOut aria-hidden className="h-4.5 w-4.5" />Sign out</button>
               </form>
             ) : (
-              <NavigationAction href="/auth/sign-in" label="Sign in" Icon={LogIn} iconClassName="h-4.5 w-4.5" className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-[var(--color-primary-soft)]" />
+              <NavigationAction href="/auth/sign-in" label="Sign in" Icon={LogIn} showLabel labelClassName="text-xs leading-tight" iconClassName="h-4.5 w-4.5 shrink-0" className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 hover:bg-[var(--color-primary-soft)]" />
             )}
           </div>
         </div>
@@ -299,14 +318,14 @@ function MoreSheet({ open, onClose, user, canPost }: { open: boolean; onClose: (
         </div>
         <div className="divide-y divide-[var(--color-border)]">
           {items.map(({ href, label, Icon }) => (
-            <NavigationAction key={href} href={href} label={label} Icon={Icon} onNavigate={onClose} className="flex min-h-12 w-full items-center gap-4 py-2 text-left hover:bg-[var(--color-primary-soft)]" />
+            <NavigationAction key={href} href={href} label={label} Icon={Icon} showLabel labelClassName="text-sm leading-tight" onNavigate={onClose} className="flex min-h-12 w-full items-center gap-4 py-2 text-left hover:bg-[var(--color-primary-soft)]" />
           ))}
           {user ? (
             <form action="/api/auth/sign-out" method="post">
               <button className="flex min-h-12 w-full items-center gap-4 py-2 text-left font-semibold text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)]"><LogOut aria-hidden className="h-5 w-5" />Sign out</button>
             </form>
           ) : (
-            <NavigationAction href="/auth/sign-in" label="Sign in" Icon={LogIn} onNavigate={onClose} className="flex min-h-12 w-full items-center gap-4 py-2 text-left hover:bg-[var(--color-primary-soft)]" />
+            <NavigationAction href="/auth/sign-in" label="Sign in" Icon={LogIn} showLabel labelClassName="text-sm leading-tight" onNavigate={onClose} className="flex min-h-12 w-full items-center gap-4 py-2 text-left hover:bg-[var(--color-primary-soft)]" />
           )}
         </div>
       </div>

@@ -1,4 +1,5 @@
 import type { User } from "@/types/storefront";
+import { Suspense } from "react";
 import { BottomNav, Header, LeftNav, RightRail } from "@/components/navigation/Navigation";
 import { canPostProduct } from "@/lib/auth/session";
 import { serverGet } from "@/lib/api/django";
@@ -22,13 +23,17 @@ export async function Shell({ children, user }: { children: React.ReactNode; use
     <NotificationProvider initialUnreadCount={unread.count}>
       <CartProvider initialCart={cart}>
         <MyListProvider initialCount={bookmarks.count}>
-          <Header branding={branding} user={user} />
-          <LeftNav user={user} canPost={postable} branding={branding} />
+          <Suspense>
+            <Header branding={branding} user={user} />
+            <LeftNav user={user} canPost={postable} branding={branding} />
+          </Suspense>
           <main className="app-shell">
             <div className="main-column feed-column">{children}</div>
           </main>
           <RightRail cart={cart} stores={stores.slice(0, 4)} recent={recent.slice(0, 3)} />
-          <BottomNav user={user} canPost={postable} />
+          <Suspense>
+            <BottomNav user={user} canPost={postable} />
+          </Suspense>
         </MyListProvider>
       </CartProvider>
     </NotificationProvider>

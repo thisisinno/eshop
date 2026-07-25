@@ -18,6 +18,7 @@
   --shadow-card: none;
   --shadow-card-hover: none;
   --nav-height: 76px;
+  --desktop-nav-width: 128px;
 }
 
 * { box-sizing: border-box; }
@@ -101,7 +102,9 @@ body {
     animation: none;
   }
 }
-a { color: inherit; text-decoration: none; }
+@layer base {
+  a { color: inherit; text-decoration: none; }
+}
 button, input, select, textarea { font: inherit; }
 :focus-visible { outline: 2px solid #0f1419; outline-offset: 2px; }
 
@@ -140,17 +143,17 @@ button, input, select, textarea { font: inherit; }
 .shelf-desktop-only { display: none; }
 
 @media (min-width: 768px) {
-  .app-shell { padding: 0 0 0 88px; }
+  .app-shell { padding: 0 0 0 var(--desktop-nav-width); }
   .main-column { padding: 0; }
 }
 @media (min-width: 1200px) {
-  .app-shell { padding-left: 88px; padding-right: 330px; }
+  .app-shell { padding-left: var(--desktop-nav-width); padding-right: 330px; }
   .product-grid-two,
   .shelf-scroll { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .shelf-desktop-only { display: contents; }
 }
 @media (min-width: 1440px) {
-  .app-shell { padding-left: 88px; padding-right: 350px; }
+  .app-shell { padding-left: var(--desktop-nav-width); padding-right: 350px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .navigation-action,
