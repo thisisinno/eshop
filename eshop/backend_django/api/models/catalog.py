@@ -56,7 +56,25 @@ class ProductCategory(models.Model):
     class Meta:
         ordering = ("display_order", "name")
 
+    def clean(self):
+        super().clean()
+        if not self.parent_id:
+            return
+        if self.pk and self.parent_id == self.pk:
+            raise ValidationError({"parent": "A category cannot be its own parent."})
+
+        visited = {self.pk} if self.pk else set()
+        ancestor = self.parent
+        while ancestor is not None:
+            if ancestor.pk in visited:
+                raise ValidationError({
+                    "parent": "This parent would create a cycle in the category hierarchy."
+                })
+            visited.add(ancestor.pk)
+            ancestor = ancestor.parent
+
     def save(self, *args, **kwargs):
+        self.full_clean(exclude=("slug",))
         base_slug = slugify(self.name) or "category"
         candidate, suffix = base_slug, 2
         while ProductCategory.objects.exclude(pk=self.pk).filter(slug=candidate).exists():

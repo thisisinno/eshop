@@ -18,6 +18,7 @@ export type Category = {
   image_url: string | null;
   display_order: number;
   is_featured: boolean;
+  parent_id: number | null;
 };
 
 export type StoreSummary = {

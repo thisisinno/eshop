@@ -40,6 +40,50 @@ const statuses: ProductStatus[] = [
   "archived",
 ];
 
+function orderedCategoryTree(items: ProductCategory[]) {
+  const children = new Map<number | null, ProductCategory[]>();
+  for (const item of items) {
+    const siblings = children.get(item.parent) ?? [];
+    siblings.push(item);
+    children.set(item.parent, siblings);
+  }
+  for (const siblings of children.values()) {
+    siblings.sort(
+      (a, b) =>
+        a.display_order - b.display_order || a.name.localeCompare(b.name),
+    );
+  }
+  const result: Array<{ category: ProductCategory; depth: number }> = [];
+  const visited = new Set<number>();
+  function visit(parent: number | null, depth: number) {
+    for (const category of children.get(parent) ?? []) {
+      if (visited.has(category.id)) continue;
+      visited.add(category.id);
+      result.push({ category, depth });
+      visit(category.id, depth + 1);
+    }
+  }
+  visit(null, 0);
+  for (const category of items) {
+    if (!visited.has(category.id)) result.push({ category, depth: 0 });
+  }
+  return result;
+}
+
+function descendantCategoryIds(items: ProductCategory[], categoryId: number) {
+  const descendants = new Set<number>();
+  const pending = [categoryId];
+  while (pending.length) {
+    const parent = pending.pop();
+    for (const item of items) {
+      if (item.parent !== parent || descendants.has(item.id)) continue;
+      descendants.add(item.id);
+      pending.push(item.id);
+    }
+  }
+  return descendants;
+}
+
 export function ProductsPage() {
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [traders, setTraders] = useState<TraderProfile[]>([]);
@@ -1414,6 +1458,7 @@ export function CategoriesPage() {
   useEffect(() => {
     void load();
   }, []);
+  const orderedItems = orderedCategoryTree(items);
   return (
     <>
       <PageHeader
@@ -1423,12 +1468,17 @@ export function CategoriesPage() {
       />
       <DataTable
         columns={["Category", "Parent", "Status", "Updated", "Actions"]}
-        rows={items}
+        rows={orderedItems}
         empty="No categories found."
-        render={(item) => [
+        render={({ category: item, depth }) => [
           <div>
-            <p className="font-medium">{item.name}</p>
-            <p className="text-xs">{item.slug}</p>
+            <p className="font-medium" style={{ paddingLeft: `${depth * 20}px` }}>
+              {depth ? <span aria-hidden>↳ </span> : null}
+              {item.name}
+            </p>
+            <p className="text-xs" style={{ paddingLeft: `${depth * 20}px` }}>
+              {item.slug}
+            </p>
           </div>,
           items.find((parentItem) => parentItem.id === item.parent)?.name ||
             "—",
@@ -1516,6 +1566,14 @@ export function CategoryFormPage({ id }: { id?: string }) {
     }
   };
   if (loading) return <p>Loading category…</p>;
+  const currentId = id ? Number(id) : null;
+  const excludedParentIds = currentId
+    ? descendantCategoryIds(items, currentId)
+    : new Set<number>();
+  if (currentId) excludedParentIds.add(currentId);
+  const parentOptions = orderedCategoryTree(items).filter(
+    ({ category }) => !excludedParentIds.has(category.id),
+  );
   return (
     <>
       <PageHeader
@@ -1533,11 +1591,9 @@ export function CategoryFormPage({ id }: { id?: string }) {
               onChange={(e) => setParent(e.target.value)}
             >
               <option value="">No parent</option>
-              {items
-                .filter((item) => String(item.id) !== id)
-                .map((item) => (
+              {parentOptions.map(({ category: item, depth }) => (
                   <option key={item.id} value={item.id}>
-                    {item.name}
+                    {`${"— ".repeat(depth)}${item.name}`}
                   </option>
                 ))}
             </select>

@@ -18,7 +18,7 @@ class PublicCategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ProductCategory
-        fields = ("id", "name", "slug", "description", "icon", "image_url", "display_order", "is_featured")
+        fields = ("id", "name", "slug", "description", "icon", "image_url", "display_order", "is_featured", "parent_id")
 
     def get_image_url(self, obj):
         return file_url(obj.image, self.context.get("request"))

@@ -18,6 +18,7 @@ from api.serializers.storefront import (
 )
 from api.services.notifications import create_activity_notification, mark_all_read, mark_notification_read, notify_admin_of_new_order, sync_order_notification, visible_notifications_for
 from api.services.recommendations import build_home_shelves, public_products_queryset
+from api.services.categories import filter_products_by_category_subtree
 
 
 class StorefrontPagination(PageNumberPagination):
@@ -91,6 +92,7 @@ ALL_CATEGORY = {
     "image_url": None,
     "display_order": 0,
     "is_featured": True,
+    "parent_id": None,
 }
 
 
@@ -126,7 +128,7 @@ class StorefrontCategoriesAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        queryset = ProductCategory.objects.filter(is_active=True).order_by("display_order", "name")
+        queryset = ProductCategory.objects.filter(is_active=True).select_related("parent").order_by("display_order", "name")
         categories = [ALL_CATEGORY]
         categories.extend(PublicCategorySerializer(queryset, many=True, context={"request": request}).data)
         return Response(categories)
@@ -144,7 +146,11 @@ class StorefrontCategoryDetailAPIView(APIView):
             category = get_object_or_404(ProductCategory, slug=slug, is_active=True)
             category_payload = PublicCategorySerializer(category, context={"request": request}).data
             record_activity(request, UserActivityLog.Action.CATEGORY_OPEN, metadata={"category": category.slug})
-            queryset = filter_public_products(request, public_products_queryset().filter(category=category))
+            queryset = filter_public_products(
+                request,
+                filter_products_by_category_subtree(public_products_queryset(), category),
+                apply_category_filter=False,
+            )
         paginator = StorefrontPagination()
         page = paginator.paginate_queryset(annotate_products(queryset, request), request)
         return paginator.response_with_extra(
@@ -162,16 +168,17 @@ SORTS = {
 }
 
 
-def filter_public_products(request, queryset):
+def filter_public_products(request, queryset, apply_category_filter=True):
     params = request.query_params
     if search := params.get("search", "").strip():
         queryset = queryset.filter(Q(name__icontains=search) | Q(short_description__icontains=search) | Q(trader__business_name__icontains=search))
         record_activity(request, UserActivityLog.Action.SEARCH, metadata={"query": search})
-    if category := params.get("category"):
-        if category.lower() == ALL_CATEGORY["slug"]:
-            category = ""
-    if category:
-        queryset = queryset.filter(category__slug=category)
+    if apply_category_filter and (category_slug := params.get("category", "").strip()):
+        if category_slug.lower() != ALL_CATEGORY["slug"]:
+            category = get_object_or_404(
+                ProductCategory, slug=category_slug, is_active=True
+            )
+            queryset = filter_products_by_category_subtree(queryset, category)
     if store := params.get("store"):
         queryset = queryset.filter(trader__slug=store)
     if min_price := params.get("min_price"):

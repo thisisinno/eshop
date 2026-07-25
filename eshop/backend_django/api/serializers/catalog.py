@@ -35,6 +35,22 @@ class ProductCategorySerializer(serializers.ModelSerializer):
         fields = "__all__"
         read_only_fields = ("slug", "created_at", "updated_at")
 
+    def validate_parent(self, parent):
+        if parent is None:
+            return parent
+        if self.instance and parent.pk == self.instance.pk:
+            raise serializers.ValidationError("A category cannot be its own parent.")
+        ancestor = parent
+        visited = {self.instance.pk} if self.instance else set()
+        while ancestor is not None:
+            if ancestor.pk in visited:
+                raise serializers.ValidationError(
+                    "This parent would create a cycle in the category hierarchy."
+                )
+            visited.add(ancestor.pk)
+            ancestor = ancestor.parent
+        return parent
+
 
 class ProductMediaSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()

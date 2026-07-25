@@ -476,7 +476,76 @@ class StorefrontAPITests(TestCase):
         self.assertEqual(response.data[0]["id"], 0)
         self.assertEqual(response.data[0]["name"], "All")
         self.assertEqual(response.data[0]["slug"], "all")
+        self.assertIsNone(response.data[0]["parent_id"])
         self.assertFalse(ProductCategory.objects.filter(slug="all").exists())
+
+    def test_categories_expose_parent_relationship(self):
+        child = ProductCategory.objects.create(
+            name="Smartphones", parent=self.category, is_active=True
+        )
+        response = self.client.get("/api/storefront/categories/")
+        payload = {item["id"]: item for item in response.data}
+        self.assertIsNone(payload[self.category.id]["parent_id"])
+        self.assertEqual(payload[child.id]["parent_id"], self.category.id)
+
+    def test_parent_category_detail_includes_active_descendants_at_any_depth(self):
+        men = ProductCategory.objects.create(name="Men")
+        tshirts = ProductCategory.objects.create(name="T-Shirts", parent=men)
+        jackets = ProductCategory.objects.create(name="Jackets", parent=men)
+        clothing = ProductCategory.objects.create(name="Clothing", parent=men)
+        graphic_tshirts = ProductCategory.objects.create(
+            name="Graphic T-Shirts", parent=clothing
+        )
+        women = ProductCategory.objects.create(name="Women")
+        products = [
+            Product.objects.create(trader=self.store, category=men, name="Men Direct", price=10, stock_quantity=1, status=Product.Status.ACTIVE),
+            Product.objects.create(trader=self.store, category=tshirts, name="Men Tee", price=20, stock_quantity=1, status=Product.Status.ACTIVE),
+            Product.objects.create(trader=self.store, category=jackets, name="Men Jacket", price=30, stock_quantity=1, status=Product.Status.ACTIVE),
+            Product.objects.create(trader=self.store, category=graphic_tshirts, name="Men Graphic Tee", price=40, stock_quantity=1, status=Product.Status.ACTIVE),
+        ]
+        womens_product = Product.objects.create(
+            trader=self.store, category=women, name="Women's Dress", price=50,
+            stock_quantity=1, status=Product.Status.ACTIVE,
+        )
+
+        response = self.client.get(f"/api/storefront/categories/{men.slug}/?page_size=60")
+        names = {item["name"] for item in response.data["results"]}
+        self.assertTrue({product.name for product in products}.issubset(names))
+        self.assertNotIn(womens_product.name, names)
+
+        products_response = self.client.get(
+            f"/api/storefront/products/?category={men.slug}&page_size=60"
+        )
+        product_names = {item["name"] for item in products_response.data["results"]}
+        self.assertTrue({product.name for product in products}.issubset(product_names))
+        self.assertNotIn(womens_product.name, product_names)
+
+    def test_inactive_descendant_and_its_branch_are_excluded(self):
+        root = ProductCategory.objects.create(name="Active Root")
+        inactive = ProductCategory.objects.create(
+            name="Inactive Branch", parent=root, is_active=False
+        )
+        active_grandchild = ProductCategory.objects.create(
+            name="Active Below Inactive", parent=inactive
+        )
+        hidden = Product.objects.create(
+            trader=self.store, category=active_grandchild, name="Hidden Branch Product",
+            price=10, stock_quantity=1, status=Product.Status.ACTIVE,
+        )
+        response = self.client.get(f"/api/storefront/categories/{root.slug}/")
+        self.assertNotIn(hidden.name, [item["name"] for item in response.data["results"]])
+
+    def test_category_hierarchy_rejects_self_parent_and_cycles(self):
+        root = ProductCategory.objects.create(name="Cycle Root")
+        child = ProductCategory.objects.create(name="Cycle Child", parent=root)
+        grandchild = ProductCategory.objects.create(name="Cycle Grandchild", parent=child)
+
+        root.parent = root
+        with self.assertRaisesMessage(ValidationError, "cannot be its own parent"):
+            root.save()
+        root.parent = grandchild
+        with self.assertRaisesMessage(ValidationError, "create a cycle"):
+            root.save()
 
     def test_all_category_detail_returns_products_across_real_categories(self):
         response = self.client.get("/api/storefront/categories/all/")
