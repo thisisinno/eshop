@@ -3,15 +3,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Bell,
-  ChevronUp,
+  Bookmark,
   Check,
   Ellipsis,
   Home,
   LogIn,
   LogOut,
+  Loader2,
   Package,
   Plus,
   Search,
@@ -32,14 +33,14 @@ import { BrandLogo } from "./BrandLogo";
 const primaryNav = [
   { label: "Home", href: "/", Icon: Home },
   { label: "Search", href: "/search", Icon: Search },
-  { label: "My List", href: "/saved", Icon: Check },
+  { label: "My List", href: "/saved", Icon: Bookmark },
   { label: "Notifications", href: "/notifications", Icon: Bell },
   { label: "Cart", href: "/cart", Icon: ShoppingBag },
 ] as const;
 
 const mobileNav = [
   { label: "Home", href: "/", Icon: Home },
-  { label: "My List", href: "/saved", Icon: Check },
+  { label: "My List", href: "/saved", Icon: Bookmark },
   { label: "Notifications", href: "/notifications", Icon: Bell },
 ] as const;
 
@@ -68,25 +69,78 @@ function IconWithBadge({ children, count }: { children: React.ReactNode; count: 
   );
 }
 
-function CartLink() {
-  const { count } = useCart();
+function NavigationAction({
+  href, label, Icon, count = 0, className = "", iconClassName = "h-5 w-5", showLabel = false, onNavigate,
+}: {
+  href: string; label: string; Icon: React.ComponentType<{ className?: string; strokeWidth?: number; "aria-hidden"?: boolean }>;
+  count?: number; className?: string; iconClassName?: string; showLabel?: boolean; onNavigate?: () => void;
+}) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [requested, setRequested] = useState(false);
+  const [complete, setComplete] = useState(false);
+  const active = isActive(pathname, href.split("?")[0]);
+
+  useEffect(() => {
+    if (!requested || !active) return;
+    const confirmation = window.setTimeout(() => {
+      setRequested(false);
+      setComplete(true);
+    }, 0);
+    const reset = window.setTimeout(() => setComplete(false), 280);
+    return () => {
+      window.clearTimeout(confirmation);
+      window.clearTimeout(reset);
+    };
+  }, [active, requested]);
+
+  function navigate(event: React.MouseEvent<HTMLAnchorElement>) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (active || requested) return;
+    event.preventDefault();
+    setRequested(true);
+    onNavigate?.();
+    startTransition(() => router.push(href));
+  }
+
+  const feedback = requested || isPending
+    ? <Loader2 aria-hidden className={`${iconClassName} animate-spin motion-reduce:animate-none`} />
+    : complete
+      ? <Check aria-hidden className={iconClassName} strokeWidth={2.8} />
+      : <Icon aria-hidden className={iconClassName} strokeWidth={active ? 2.7 : 2.1} />;
   return (
-    <Link aria-label="Cart" href="/cart" className="relative grid h-11 w-11 place-items-center rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.97]">
-      <IconWithBadge count={count}>
-        <ShoppingBag aria-hidden className="h-5 w-5" />
-      </IconWithBadge>
+    <Link
+      href={href}
+      aria-label={label}
+      title={label}
+      aria-current={active ? "page" : undefined}
+      aria-disabled={requested || isPending}
+      onClick={navigate}
+      className={`navigation-action ${active ? "font-black text-[var(--color-text)]" : "font-semibold text-[var(--color-text-secondary)]"} ${className}`}
+    >
+      {count > 0 ? <IconWithBadge count={count}>{feedback}</IconWithBadge> : feedback}
+      {showLabel ? <span className="max-w-full truncate text-[10px] leading-none">{label}</span> : null}
     </Link>
   );
+}
+
+function CartLink() {
+  const { count } = useCart();
+  return <NavigationAction href="/cart" label="Cart" Icon={ShoppingBag} count={count} className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full hover:bg-[var(--color-primary-soft)]" />;
 }
 
 export function Header({ branding, user }: { branding: SiteBranding; user: User | null }) {
   return (
     <header className="fixed inset-x-0 top-0 z-40 flex h-[58px] items-center justify-between border-b border-[var(--color-border)] bg-white/95 px-4 backdrop-blur md:hidden">
       <BrandLogo branding={branding} user={user} className="h-10 w-10" />
-      <div className="pointer-events-none absolute left-1/2 max-w-[calc(100vw-128px)] -translate-x-1/2 truncate text-base font-black text-[var(--color-text)]">
+      <div className="pointer-events-none absolute left-1/2 max-w-[calc(100vw-152px)] -translate-x-1/2 truncate text-base font-black text-[var(--color-text)]">
         {branding.site_name || "eShop"}
       </div>
-      <CartLink />
+      <div className="flex shrink-0 items-center gap-0.5">
+        <NavigationAction href="/search" label="Search" Icon={Search} className="grid h-10 w-10 place-items-center rounded-full hover:bg-[var(--color-primary-soft)]" />
+        <CartLink />
+      </div>
     </header>
   );
 }
@@ -125,18 +179,10 @@ export function LeftNav({ user, canPost, branding }: { user: User | null; canPos
         <div className="mb-2 flex h-12 items-center justify-center">
           <BrandLogo branding={branding} user={user} className="h-12 w-12" />
         </div>
-        <nav className="flex min-h-0 flex-col items-center gap-2">
+        <nav className="flex min-h-0 flex-col items-center gap-1">
         {primaryNav.map(({ label, href, Icon }) => {
-          const active = isActive(pathname, href);
-          return (
-            <Link key={href} href={href} aria-label={label} title={label} className={`relative flex h-12 w-12 items-center justify-center rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] ${active ? "bg-[var(--color-primary-soft)] font-black" : "font-medium"}`}>
-              {label === "Notifications" || label === "My List" || label === "Cart" ? (
-                <IconWithBadge count={label === "Notifications" ? unreadCount : label === "My List" ? myListCount : cartCount}>
-                  <Icon aria-hidden className="h-6 w-6" strokeWidth={active ? 2.7 : 2.1} />
-                </IconWithBadge>
-              ) : <Icon aria-hidden className="h-6 w-6" strokeWidth={active ? 2.7 : 2.1} />}
-            </Link>
-          );
+          const count = label === "Notifications" ? unreadCount : label === "My List" ? myListCount : label === "Cart" ? cartCount : 0;
+          return <NavigationAction key={href} href={href} label={label} Icon={Icon} count={count} showLabel iconClassName="h-5.5 w-5.5" className="relative flex h-[58px] w-[72px] flex-col items-center justify-center gap-1 rounded-xl hover:bg-[var(--color-primary-soft)]" />;
         })}
         <DesktopMoreNavigation user={user} canPost={canPost} pathname={pathname} />
         </nav>
@@ -170,18 +216,8 @@ export function BottomNav({ user, canPost }: { user: User | null; canPost: boole
       ) : null}
       <nav className="fixed inset-x-0 bottom-0 z-40 grid h-[76px] grid-cols-4 border-t border-[var(--color-border)] bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {mobileNav.map(({ label, href, Icon }) => {
-          const active = isActive(pathname, href);
-          return (
-            <Link key={href} href={href} className={`relative flex min-h-11 flex-col items-center justify-center gap-1 text-xs transition active:scale-[0.97] ${active ? "font-black text-[var(--color-text)]" : "font-semibold text-[var(--color-text-secondary)]"}`}>
-              <span className={`absolute top-1 h-1 w-5 rounded-full bg-[var(--color-black)] transition ${active ? "opacity-100" : "opacity-0"}`} />
-              {label === "Notifications" || label === "My List" ? (
-                <IconWithBadge count={label === "Notifications" ? unreadCount : myListCount}>
-                  <Icon aria-hidden className="h-5 w-5" strokeWidth={active ? 2.7 : 2.1} />
-                </IconWithBadge>
-              ) : <Icon aria-hidden className="h-5 w-5" strokeWidth={active ? 2.7 : 2.1} />}
-              {label}
-            </Link>
-          );
+          const count = label === "Notifications" ? unreadCount : label === "My List" ? myListCount : 0;
+          return <NavigationAction key={href} href={href} label={label} Icon={Icon} count={count} showLabel className="relative flex min-h-11 flex-col items-center justify-center gap-1 text-xs" />;
         })}
         <MoreMenuButton user={user} canPost={canPost} className="relative flex min-h-11 flex-col items-center justify-center gap-1 text-xs font-semibold text-[var(--color-text-secondary)] transition active:scale-[0.97]" labelClassName="text-xs" />
       </nav>
@@ -194,7 +230,7 @@ function DesktopMoreNavigation({ user, canPost, pathname }: { user: User | null;
   const items = useMemo(() => moreItems(canPost).filter((item) => item.href !== "/search"), [canPost]);
   const moreActive = items.some((item) => !item.href.startsWith("/search?") && isActive(pathname, item.href.split("?")[0]));
   return (
-    <div className="min-h-0">
+    <div className="relative min-h-0">
       <button
         type="button"
         aria-expanded={open}
@@ -202,30 +238,28 @@ function DesktopMoreNavigation({ user, canPost, pathname }: { user: User | null;
         aria-label={open ? "Collapse more navigation" : "Expand more navigation"}
         onClick={() => setOpen((value) => !value)}
         title={open ? "Close More" : "More"}
-        className={`flex h-12 w-12 items-center justify-center rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] ${open || moreActive ? "bg-[var(--color-primary-soft)] font-black" : "font-medium"}`}
+        className={`navigation-action flex h-[58px] w-[72px] flex-col items-center justify-center gap-1 rounded-xl text-[var(--color-text)] hover:bg-[var(--color-primary-soft)] ${open || moreActive ? "bg-[var(--color-primary-soft)] font-black" : "font-medium"}`}
       >
-        {open ? <ChevronUp aria-hidden className="h-6 w-6" strokeWidth={2.6} /> : <Ellipsis aria-hidden className="h-6 w-6" strokeWidth={2.2} />}
+        <Ellipsis aria-hidden className="h-5.5 w-5.5" strokeWidth={open ? 2.7 : 2.2} />
+        <span className="text-[10px] leading-none">More</span>
       </button>
       <div
         id="desktop-more-navigation"
-        className={`grid transition-[grid-template-rows,opacity,transform] duration-180 motion-reduce:transition-none ${open ? "grid-rows-[1fr] opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-1"}`}
+        className={`absolute left-[76px] top-0 w-52 rounded-xl border border-[var(--color-border)] bg-white p-2 shadow-lg transition duration-180 motion-reduce:transition-none ${open ? "visible translate-x-0 opacity-100" : "invisible -translate-x-1 opacity-0"}`}
       >
-        <div className="min-h-0 overflow-hidden">
-          <div className="mt-1 max-h-[40vh] space-y-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+        <div>
+          <div className="max-h-[60vh] space-y-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
             {items.map(({ href, label, Icon }) => {
-              const active = !href.startsWith("/search?") && isActive(pathname, href.split("?")[0]);
               return (
-                <Link key={href} href={href} aria-label={label} title={label} className={`flex h-10 w-10 items-center justify-center rounded-full text-sm transition hover:bg-[var(--color-primary-soft)] ${active ? "font-black" : "font-semibold text-[var(--color-text-secondary)]"}`}>
-                  <Icon aria-hidden className="h-4.5 w-4.5" />
-                </Link>
+                <NavigationAction key={href} href={href} label={label} Icon={Icon} iconClassName="h-4.5 w-4.5" className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-[var(--color-primary-soft)]" />
               );
             })}
             {user ? (
               <form action="/api/auth/sign-out" method="post">
-                <button aria-label="Sign out" title="Sign out" className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-primary-soft)]"><LogOut aria-hidden className="h-4.5 w-4.5" /></button>
+                <button className="navigation-action flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-soft)]"><LogOut aria-hidden className="h-4.5 w-4.5" />Sign out</button>
               </form>
             ) : (
-              <Link href="/auth/sign-in" aria-label="Sign in" title="Sign in" className={`flex h-10 w-10 items-center justify-center rounded-full text-sm transition hover:bg-[var(--color-primary-soft)] ${isActive(pathname, "/auth/sign-in") ? "font-black" : "font-semibold text-[var(--color-text-secondary)]"}`}><LogIn aria-hidden className="h-4.5 w-4.5" /></Link>
+              <NavigationAction href="/auth/sign-in" label="Sign in" Icon={LogIn} iconClassName="h-4.5 w-4.5" className="flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm hover:bg-[var(--color-primary-soft)]" />
             )}
           </div>
         </div>
@@ -235,7 +269,6 @@ function DesktopMoreNavigation({ user, canPost, pathname }: { user: User | null;
 }
 
 function MoreSheet({ open, onClose, user, canPost }: { open: boolean; onClose: () => void; user: User | null; canPost: boolean }) {
-  const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
   const items = useMemo(() => moreItems(canPost), [canPost]);
 
@@ -256,10 +289,6 @@ function MoreSheet({ open, onClose, user, canPost }: { open: boolean; onClose: (
   }, [open, onClose]);
 
   if (!open) return null;
-  function go(href: string) {
-    onClose();
-    router.push(href);
-  }
   return (
     <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true" aria-label="More navigation">
       <button aria-label="Close more menu" className="absolute inset-0 h-full w-full bg-black/20 opacity-100 transition" onClick={onClose} />
@@ -270,17 +299,14 @@ function MoreSheet({ open, onClose, user, canPost }: { open: boolean; onClose: (
         </div>
         <div className="divide-y divide-[var(--color-border)]">
           {items.map(({ href, label, Icon }) => (
-            <button key={href} onClick={() => go(href)} className="flex min-h-12 w-full items-center gap-4 py-2 text-left font-semibold text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)]">
-              <Icon aria-hidden className="h-5 w-5" />
-              {label}
-            </button>
+            <NavigationAction key={href} href={href} label={label} Icon={Icon} onNavigate={onClose} className="flex min-h-12 w-full items-center gap-4 py-2 text-left hover:bg-[var(--color-primary-soft)]" />
           ))}
           {user ? (
             <form action="/api/auth/sign-out" method="post">
               <button className="flex min-h-12 w-full items-center gap-4 py-2 text-left font-semibold text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)]"><LogOut aria-hidden className="h-5 w-5" />Sign out</button>
             </form>
           ) : (
-            <button onClick={() => go("/auth/sign-in")} className="flex min-h-12 w-full items-center gap-4 py-2 text-left font-semibold text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)]"><LogIn aria-hidden className="h-5 w-5" />Sign in</button>
+            <NavigationAction href="/auth/sign-in" label="Sign in" Icon={LogIn} onNavigate={onClose} className="flex min-h-12 w-full items-center gap-4 py-2 text-left hover:bg-[var(--color-primary-soft)]" />
           )}
         </div>
       </div>

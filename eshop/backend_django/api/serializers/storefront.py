@@ -35,6 +35,39 @@ class PublicMediaSerializer(serializers.ModelSerializer):
         return file_url(obj.file, self.context.get("request"))
 
 
+class PublicProductCardMediaSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProductMedia
+        fields = ("id", "media_type", "url", "title", "alt_text", "is_primary", "sort_order")
+
+    def get_url(self, obj):
+        return file_url(obj.file, self.context.get("request"))
+
+
+def ordered_customer_media(obj, primary_first=False):
+    """Use the prefetched relation and provide stable ordering for legacy ties."""
+    media = [
+        item for item in obj.media.all()
+        if item.media_type in (
+            ProductMedia.MediaType.IMAGE,
+            ProductMedia.MediaType.POSTER,
+            ProductMedia.MediaType.CLIP,
+        )
+    ]
+    media.sort(key=lambda item: (item.sort_order, item.created_at, item.id))
+    if primary_first:
+        primary = next(
+            (item for item in media if item.is_primary and item.media_type == ProductMedia.MediaType.IMAGE),
+            None,
+        )
+        if primary:
+            media.remove(primary)
+            media.insert(0, primary)
+    return media
+
+
 class PublicStoreSummarySerializer(serializers.ModelSerializer):
     follower_count = serializers.IntegerField(read_only=True, default=0)
     product_count = serializers.IntegerField(read_only=True, default=0)
@@ -75,6 +108,7 @@ class PublicProductCardSerializer(serializers.ModelSerializer):
     store = PublicStoreSummarySerializer(source="trader", read_only=True)
     category = PublicCategorySerializer(read_only=True)
     primary_media_url = serializers.SerializerMethodField()
+    media_preview = serializers.SerializerMethodField()
     has_discount = serializers.ReadOnlyField()
     discount_percent = serializers.ReadOnlyField()
     is_bookmarked = serializers.BooleanField(read_only=True, default=False)
@@ -84,12 +118,19 @@ class PublicProductCardSerializer(serializers.ModelSerializer):
         fields = (
             "id", "product_id", "name", "slug", "short_description", "price", "compare_at_price", "currency",
             "delivery_fee", "stock_quantity", "minimum_order_quantity", "unit", "has_discount", "discount_percent",
-            "views_count", "sold_count", "primary_media_url", "store", "category", "is_bookmarked", "created_at",
+            "views_count", "sold_count", "primary_media_url", "media_preview", "store", "category", "is_bookmarked", "created_at",
         )
 
     def get_primary_media_url(self, obj):
         media = obj.primary_media
         return file_url(media.file, self.context.get("request")) if media else None
+
+    def get_media_preview(self, obj):
+        return PublicProductCardMediaSerializer(
+            ordered_customer_media(obj, primary_first=True),
+            many=True,
+            context=self.context,
+        ).data
 
 
 class PublicProductDetailSerializer(PublicProductCardSerializer):
@@ -102,11 +143,14 @@ class PublicProductDetailSerializer(PublicProductCardSerializer):
 
     def get_media(self, obj):
         media = list(obj.media.all())
+        media.sort(key=lambda item: (item.sort_order, item.created_at, item.id))
         gallery = [item for item in media if item.media_type in (ProductMedia.MediaType.IMAGE, ProductMedia.MediaType.POSTER)]
         videos = [item for item in media if item.media_type == ProductMedia.MediaType.CLIP]
+        slides = ordered_customer_media(obj)
         return {
             "gallery": PublicMediaSerializer(gallery, many=True, context=self.context).data,
             "videos": PublicMediaSerializer(videos, many=True, context=self.context).data,
+            "slides": PublicMediaSerializer(slides, many=True, context=self.context).data,
         }
 
     def get_viewer_360(self, obj):

@@ -1,14 +1,13 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { Info } from "lucide-react";
 import { useState } from "react";
 import type { ProductCard as ProductCardType } from "@/types/storefront";
-import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { CartAction, BookmarkButton } from "./ProductActions";
 import { IconButton } from "@/components/ui/IconButton";
 import { ProductQuickView } from "./ProductQuickView";
+import { ProductMediaCarousel } from "./ProductMediaCarousel";
 
 const money = (amount: string, currency: string) => `${currency} ${Number(amount).toLocaleString()}`;
 
@@ -23,15 +22,16 @@ function discountPercent(product: ProductCardType) {
 
 export function ProductCard({ product, variant = "discovery" }: { product: ProductCardType; variant?: ProductCardVariant }) {
   const [quickViewOpen, setQuickViewOpen] = useState(false);
-  const image = resolveMediaUrl(product.primary_media_url);
+  const media = product.media_preview?.length ? product.media_preview : product.primary_media_url ? [{
+    id: -product.id, media_type: "image" as const, url: product.primary_media_url, title: product.name,
+    alt_text: product.name, is_primary: true, sort_order: 0,
+  }] : [];
   const discount = discountPercent(product);
   return (
     <>
       <article className="snap-card group flex h-full min-w-0 flex-col">
         <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-[var(--color-primary-soft)]">
-          <Link href={`/products/${product.id}`} className="absolute inset-0 block" aria-label={`View ${product.name}`}>
-            {image ? <Image src={image} alt={product.name} fill sizes="(max-width: 767px) 48vw, (max-width: 1199px) 330px, (max-width: 1439px) 250px, 310px" className="object-cover transition duration-200 group-hover:scale-[1.025] motion-reduce:transition-none" /> : <div className="grid h-full place-items-center text-xs text-[var(--color-text-secondary)]">No image</div>}
-          </Link>
+          <ProductMediaCarousel media={media} alt={product.name} linkHref={`/products/${product.id}`} imageSizes="(max-width: 767px) 48vw, (max-width: 1199px) 330px, (max-width: 1439px) 250px, 310px" />
         </div>
         <div className="flex min-h-[104px] flex-1 flex-col pt-2">
           <Link href={`/products/${product.id}`} className="line-clamp-2 text-[14px] font-black leading-5">{product.name}</Link>

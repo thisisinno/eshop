@@ -93,6 +93,51 @@ class StorefrontAPITests(TestCase):
         self.assertEqual(response.data["delivery_fee"], "3000.00")
         self.assertEqual(response.data["viewer_360"]["enabled"], False)
 
+    def test_public_media_preview_and_detail_slides_preserve_customer_order(self):
+        clip = ProductMedia.objects.create(
+            product=self.product, media_type=ProductMedia.MediaType.CLIP,
+            file=SimpleUploadedFile("demo.mp4", b"x"), sort_order=2,
+        )
+        cover = ProductMedia.objects.create(
+            product=self.product, media_type=ProductMedia.MediaType.IMAGE,
+            file=SimpleUploadedFile("cover.jpg", b"x"), sort_order=4, is_primary=True,
+        )
+        image = ProductMedia.objects.create(
+            product=self.product, media_type=ProductMedia.MediaType.IMAGE,
+            file=SimpleUploadedFile("side.jpg", b"x"), sort_order=1,
+        )
+        ProductMedia.objects.create(
+            product=self.product, media_type=ProductMedia.MediaType.SPIN_FRAME,
+            file=SimpleUploadedFile("spin.jpg", b"x"), sort_order=0,
+        )
+        ProductMedia.objects.create(
+            product=self.product, media_type=ProductMedia.MediaType.MODEL_3D,
+            file=SimpleUploadedFile("model.glb", b"x"), sort_order=3,
+        )
+
+        listing = self.client.get("/api/storefront/products/").data["results"]
+        card = next(item for item in listing if item["id"] == self.product.id)
+        self.assertEqual([item["id"] for item in card["media_preview"]], [cover.id, image.id, clip.id])
+        self.assertEqual([item["media_type"] for item in card["media_preview"]], ["image", "image", "clip"])
+        self.assertEqual(card["primary_media_url"], card["media_preview"][0]["url"])
+
+        detail = self.client.get(f"/api/storefront/products/{self.product.id}/").data
+        self.assertEqual([item["id"] for item in detail["media"]["slides"]], [image.id, clip.id, cover.id])
+        self.assertEqual([item["id"] for item in detail["media"]["gallery"]], [image.id, cover.id])
+        self.assertEqual([item["id"] for item in detail["media"]["videos"]], [clip.id])
+
+    def test_public_media_order_is_deterministic_for_equal_sort_order(self):
+        first = ProductMedia.objects.create(
+            product=self.product, media_type=ProductMedia.MediaType.IMAGE,
+            file=SimpleUploadedFile("first.jpg", b"x"), sort_order=1,
+        )
+        second = ProductMedia.objects.create(
+            product=self.product, media_type=ProductMedia.MediaType.CLIP,
+            file=SimpleUploadedFile("second.mp4", b"x"), sort_order=1,
+        )
+        response = self.client.get(f"/api/storefront/products/{self.product.id}/")
+        self.assertEqual([item["id"] for item in response.data["media"]["slides"]], [first.id, second.id])
+
     def test_product_bookmark_works(self):
         self.auth(self.customer)
         response = self.client.post(f"/api/storefront/products/{self.product.id}/bookmark/")

@@ -26,7 +26,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     <article>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <div className="grid gap-0 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,.95fr)] lg:items-start">
-        <Gallery gallery={product.media.gallery} videos={product.media.videos} viewer={product.viewer_360} />
+        <Gallery gallery={product.media.gallery} videos={product.media.videos} slides={product.media.slides} viewer={product.viewer_360} />
         <ProductPurchasePanel product={product} />
       </div>
       <CollapsibleSections product={product} />

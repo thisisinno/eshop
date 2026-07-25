@@ -1,13 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import type { Cart, ProductDetail } from "@/types/storefront";
-import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { BookmarkButton, CartAction } from "./ProductActions";
 import { useCart } from "@/components/cart/CartProvider";
@@ -15,6 +13,7 @@ import { parseApiError } from "@/lib/api/errors";
 import { ShareProductButton } from "./ShareProductButton";
 import { VerifiedBusinessBadge } from "@/components/store/VerifiedBusinessBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { ProductMediaCarousel } from "./ProductMediaCarousel";
 
 const money = (amount: string, currency: string) => `${currency} ${Number(amount).toLocaleString()}`;
 
@@ -90,8 +89,9 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
 
   const visibleProduct = product?.id === productId ? product : null;
   const loading = !visibleProduct;
-  const image = resolveMediaUrl(visibleProduct?.primary_media_url);
-  const gallery = visibleProduct?.media.gallery.slice(0, 4) ?? [];
+  const media = visibleProduct ? (visibleProduct.media.slides?.length
+    ? visibleProduct.media.slides
+    : [...visibleProduct.media.gallery, ...visibleProduct.media.videos].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)) : [];
   const specs = Object.entries(visibleProduct?.specifications || {}).filter(([, value]) => value !== null && value !== undefined && String(value).trim()).slice(0, 4);
 
   return (
@@ -109,12 +109,8 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
           <div className="grid gap-0 min-[360px]:grid-cols-[minmax(110px,40%)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(280px,.85fr)]">
             <div className="p-3">
               <div className="relative aspect-square overflow-hidden rounded-xl bg-[var(--color-primary-soft)]">
-                {image ? <Image src={image} alt={visibleProduct.name} fill sizes="(max-width: 767px) 42vw, 380px" className="object-cover" /> : <div className="grid h-full place-items-center text-sm text-[var(--color-text-secondary)]">No image</div>}
+                <ProductMediaCarousel media={media} alt={visibleProduct.name} imageSizes="(max-width: 767px) 42vw, 380px" />
               </div>
-              {gallery.length ? <div className="mt-2 grid grid-cols-4 gap-2">{gallery.map((item) => {
-                const url = resolveMediaUrl(item.url);
-                return <div key={item.id} className="relative aspect-square overflow-hidden rounded-lg bg-[var(--color-primary-soft)]">{url ? <Image src={url} alt={item.alt_text || item.title || ""} fill sizes="80px" className="object-cover" /> : null}</div>;
-              })}</div> : null}
             </div>
             <div className="flex min-w-0 flex-col p-3 min-[360px]:pl-0 md:p-5">
               <Link href={`/stores/${visibleProduct.store.slug}`} className="inline-flex max-w-full items-center gap-1.5 text-xs font-semibold text-[var(--color-text-secondary)] hover:underline md:text-sm">

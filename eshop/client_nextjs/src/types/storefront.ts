@@ -54,10 +54,21 @@ export type ProductCard = {
   views_count: number;
   sold_count: number;
   primary_media_url: string | null;
+  media_preview: ProductCardMedia[];
   store: StoreSummary;
   category: Category | null;
   is_bookmarked: boolean;
   created_at: string;
+};
+
+export type ProductCardMedia = {
+  id: number;
+  media_type: "image" | "clip" | "poster";
+  url: string | null;
+  title: string;
+  alt_text: string;
+  is_primary: boolean;
+  sort_order: number;
 };
 
 export type ProductMedia = {
@@ -81,7 +92,7 @@ export type ProductDetail = ProductCard & {
   specifications: Record<string, unknown>;
   view_360_enabled: boolean;
   view_360_mode: "spin" | "model";
-  media: { gallery: ProductMedia[]; videos: ProductMedia[] };
+  media: { gallery: ProductMedia[]; videos: ProductMedia[]; slides: ProductMedia[] };
   viewer_360: Viewer360;
   related_products: ProductCard[];
 };
