@@ -6,13 +6,13 @@ export function Skeleton({ className }: { className?: string }) {
 
 export function ProductCardSkeleton() {
   return (
-    <div className="h-[312px] rounded-lg border border-[var(--color-border)] bg-white p-2">
-      <Skeleton className="aspect-square w-full" />
-      <Skeleton className="mt-3 h-3 w-20" />
+    <div className="flex h-full min-w-0 flex-col bg-white">
+      <Skeleton className="aspect-[4/3] w-full" />
       <Skeleton className="mt-2 h-4 w-full" />
       <Skeleton className="mt-1 h-4 w-4/5" />
-      <div className="mt-4 flex items-center justify-between">
-        <Skeleton className="h-5 w-24" />
+      <Skeleton className="mt-1 h-5 w-24" />
+      <div className="mt-2 flex min-h-11 items-center gap-2 border-t border-[var(--color-border)] pt-2">
+        <Skeleton className="h-10 w-10 rounded-full" />
         <Skeleton className="h-10 w-10 rounded-full" />
       </div>
     </div>

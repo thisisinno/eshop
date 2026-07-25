@@ -34,6 +34,18 @@ body {
   animation: cart-action-confirm 180ms ease-out;
 }
 
+.product-card-action {
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.product-card-action:active {
+  transform: scale(0.92);
+}
+
+.bookmark-action-confirmed {
+  animation: bookmark-action-confirm 240ms ease-out;
+}
+
 .brand-logo-status-unseen {
   box-shadow: 0 0 0 2px #000;
   animation: brand-status-cue 1600ms ease-out 2;
@@ -51,6 +63,12 @@ body {
 
 @keyframes cart-action-confirm {
   0% { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+
+@keyframes bookmark-action-confirm {
+  0% { transform: scale(0.92); }
+  55% { transform: scale(1.08); }
   100% { transform: scale(1); }
 }
 
@@ -76,6 +94,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .cart-action-added,
+  .bookmark-action-confirmed,
   .brand-logo-status-unseen,
   .skeleton-shimmer,
   .post-fab {
@@ -90,7 +109,7 @@ button, input, select, textarea { font: inherit; }
   min-height: 100vh;
   padding: 58px 0 calc(var(--nav-height) + env(safe-area-inset-bottom));
 }
-.main-column { width: min(100%, 760px); margin: 0 auto; padding: 0 12px; }
+.main-column { width: min(100%, 1000px); margin: 0 auto; padding: 0 12px; }
 .feed-column { border-left: 1px solid var(--color-border); border-right: 1px solid var(--color-border); min-height: 100vh; }
 .product-grid-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .shelf-scroll {
@@ -108,21 +127,22 @@ button, input, select, textarea { font: inherit; }
 .snap-card { scroll-snap-align: start; }
 .line-clamp-1, .line-clamp-2 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
 .line-clamp-1 { -webkit-line-clamp: 1; }
-.line-clamp-2 { -webkit-line-clamp: 2; min-height: 40px; }
+.line-clamp-2 { -webkit-line-clamp: 2; }
+
+.shelf-desktop-only { display: none; }
 
 @media (min-width: 768px) {
-  .app-shell { padding: 0 0 0 78px; }
+  .app-shell { padding: 0 0 0 88px; }
   .main-column { padding: 0; }
 }
 @media (min-width: 1200px) {
-  .app-shell { padding-left: 260px; padding-right: 330px; }
+  .app-shell { padding-left: 88px; padding-right: 330px; }
+  .product-grid-two,
+  .shelf-scroll { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .shelf-desktop-only { display: contents; }
 }
 @media (min-width: 1440px) {
-  .app-shell { padding-left: 275px; padding-right: 350px; }
-  .main-column { width: 740px; }
-}
-@media (min-width: 1600px) {
-  .main-column { width: 740px; }
+  .app-shell { padding-left: 88px; padding-right: 350px; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

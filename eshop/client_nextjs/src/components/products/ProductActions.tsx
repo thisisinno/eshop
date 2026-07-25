@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Check, Loader2, Plus, ShoppingBag } from "lucide-react";
+import { Bookmark, Check, Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { IconButton } from "@/components/ui/IconButton";
 import { useMyList } from "@/components/bookmarks/MyListProvider";
@@ -45,8 +45,16 @@ export function BookmarkButton({ productId, initialBookmarked, compact = false }
     void refreshUnreadCount();
   }
   return (
-    <IconButton aria-label={bookmarked ? "Remove from My List" : "Add to My List"} active={bookmarked} disabled={loading} onClick={toggle} className={compact ? "h-9 w-9 bg-white/95" : undefined}>
-      {bookmarked ? <Check aria-hidden className="h-4.5 w-4.5 scale-110 transition" /> : <Plus aria-hidden className="h-4.5 w-4.5 transition" />}
+    <IconButton
+      aria-label={bookmarked ? "Remove from My List" : "Add to My List"}
+      title={bookmarked ? "Remove from My List" : "Add to My List"}
+      active={bookmarked}
+      disabled={loading}
+      onClick={toggle}
+      className={`product-card-action relative ${bookmarked ? "bookmark-action-confirmed" : ""} ${compact ? "h-9 w-9 bg-white/95" : ""}`}
+    >
+      <Bookmark aria-hidden className={`h-4.5 w-4.5 transition duration-180 motion-reduce:transition-none ${bookmarked ? "fill-current scale-105" : ""}`} />
+      {bookmarked ? <span className="absolute -right-0.5 -top-0.5 grid h-4 w-4 place-items-center rounded-full bg-[var(--color-black)] text-white"><Check aria-hidden className="h-3 w-3" strokeWidth={3} /></span> : null}
     </IconButton>
   );
 }

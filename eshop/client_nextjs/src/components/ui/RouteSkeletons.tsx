@@ -15,7 +15,7 @@ export function HomeSkeleton() {
         <div className="grid grid-cols-2 border-b border-[var(--color-border)] px-8 py-4"><Skeleton className="mx-auto h-5 w-20" /><Skeleton className="mx-auto h-5 w-24" /></div>
         <ChipRowSkeleton />
       </div>
-      {[0, 1].map((section) => <section key={section} className="border-b border-[var(--color-border)] px-3 py-5 md:px-4"><Skeleton className="mb-4 h-6 w-40" /><div className="shelf-scroll"><ProductCardSkeleton /><ProductCardSkeleton /></div></section>)}
+      {[0, 1].map((section) => <section key={section} className="border-b border-[var(--color-border)] px-3 py-5 md:px-4"><Skeleton className="mb-4 h-6 w-40" /><div className="shelf-scroll"><ProductCardSkeleton /><ProductCardSkeleton /><div className="shelf-desktop-only"><ProductCardSkeleton /></div></div></section>)}
     </>
   );
 }
@@ -34,7 +34,7 @@ export function ProductDetailSkeleton() {
         </section>
       </div>
       <div className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">{["Description", "Specifications", "Delivery", "Store information"].map((label) => <div key={label} className="flex h-14 items-center justify-between px-4"><Skeleton className="h-4 w-36" /><Skeleton className="h-5 w-5 rounded-full" /></div>)}</div>
-      <section className="border-b border-[var(--color-border)] px-3 py-5 md:px-4"><Skeleton className="mb-4 h-6 w-40" /><div className="shelf-scroll"><ProductCardSkeleton /><ProductCardSkeleton /></div></section>
+      <section className="border-b border-[var(--color-border)] px-3 py-5 md:px-4"><Skeleton className="mb-4 h-6 w-40" /><div className="shelf-scroll"><ProductCardSkeleton /><ProductCardSkeleton /><div className="shelf-desktop-only"><ProductCardSkeleton /></div></div></section>
     </article>
   );
 }

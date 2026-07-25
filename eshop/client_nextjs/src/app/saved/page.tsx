@@ -28,7 +28,7 @@ export default async function SavedPage() {
       <div className="border-b border-[var(--color-border)] px-4 py-4">
         <h1 className="text-2xl font-black md:text-3xl">My List</h1>
       </div>
-      {data?.results.length ? <div className="product-grid-two p-3 md:p-4">{data.results.map((product) => <ProductCard key={product.id} product={product} variant="my-list" />)}</div> : <div className="p-4"><EmptyState title="No products in My List yet" action={<ButtonLink href="/search">Find products</ButtonLink>}>Use + on products you want to revisit.</EmptyState></div>}
+      {data?.results.length ? <div className="product-grid-two p-3 md:p-4">{data.results.map((product) => <ProductCard key={product.id} product={product} variant="my-list" />)}</div> : <div className="p-4"><EmptyState title="No products in My List yet" action={<ButtonLink href="/search">Find products</ButtonLink>}>Bookmark products you want to revisit.</EmptyState></div>}
     </section>
   );
 }

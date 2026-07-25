@@ -31,6 +31,7 @@ import { BrandLogo } from "./BrandLogo";
 
 const primaryNav = [
   { label: "Home", href: "/", Icon: Home },
+  { label: "Search", href: "/search", Icon: Search },
   { label: "My List", href: "/saved", Icon: Check },
   { label: "Notifications", href: "/notifications", Icon: Bell },
   { label: "Cart", href: "/cart", Icon: ShoppingBag },
@@ -119,38 +120,33 @@ export function LeftNav({ user, canPost, branding }: { user: User | null; canPos
   const { count: myListCount } = useMyList();
   const { count: cartCount } = useCart();
   return (
-    <aside className="fixed left-0 top-0 z-30 hidden h-screen bg-white md:block md:w-[78px] xl:w-[260px] 2xl:w-[275px]">
-      <div className="ml-auto flex h-full min-h-0 w-[78px] flex-col gap-2 border-r border-[var(--color-border)] p-3 xl:w-[250px] xl:border-r-0">
-        <div className="mb-2 flex h-12 items-center px-3">
+    <aside className="fixed left-0 top-0 z-30 hidden h-screen w-[88px] bg-white md:block">
+      <div className="flex h-full min-h-0 w-[88px] flex-col items-center gap-2 border-r border-[var(--color-border)] px-3 py-3">
+        <div className="mb-2 flex h-12 items-center justify-center">
           <BrandLogo branding={branding} user={user} className="h-12 w-12" />
         </div>
-        <nav className="flex min-h-0 flex-col gap-2">
+        <nav className="flex min-h-0 flex-col items-center gap-2">
         {primaryNav.map(({ label, href, Icon }) => {
           const active = isActive(pathname, href);
           return (
-            <Link key={href} href={href} aria-label={label} className={`relative flex h-12 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4 ${active ? "font-black" : "font-medium"}`}>
+            <Link key={href} href={href} aria-label={label} title={label} className={`relative flex h-12 w-12 items-center justify-center rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] ${active ? "bg-[var(--color-primary-soft)] font-black" : "font-medium"}`}>
               {label === "Notifications" || label === "My List" || label === "Cart" ? (
                 <IconWithBadge count={label === "Notifications" ? unreadCount : label === "My List" ? myListCount : cartCount}>
                   <Icon aria-hidden className="h-6 w-6" strokeWidth={active ? 2.7 : 2.1} />
                 </IconWithBadge>
               ) : <Icon aria-hidden className="h-6 w-6" strokeWidth={active ? 2.7 : 2.1} />}
-              <span className="hidden text-xl xl:inline">{label}</span>
             </Link>
           );
         })}
         <DesktopMoreNavigation user={user} canPost={canPost} pathname={pathname} />
         </nav>
         {canPost ? (
-          <ButtonLink href="/post/product" className="mt-3 h-12 w-12 p-0 xl:w-[210px] xl:px-5" aria-label="Post product">
-            <Plus aria-hidden className="h-5 w-5" /><span className="hidden xl:inline">Post product</span>
+          <ButtonLink href="/post/product" className="mt-3 h-12 w-12 p-0" aria-label="Post product" title="Post product">
+            <Plus aria-hidden className="h-5 w-5" />
           </ButtonLink>
         ) : null}
-        <Link href={user ? "/profile" : "/auth/sign-in"} className="mt-auto flex min-h-12 items-center gap-3 rounded-full px-2 py-2 text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] xl:px-3">
+        <Link href={user ? "/profile" : "/auth/sign-in"} aria-label={user ? "Profile" : "Sign in"} title={user ? "Profile" : "Sign in"} className="mt-auto flex min-h-12 items-center justify-center rounded-full p-1 text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)]">
           <span className="grid h-10 w-10 place-items-center rounded-full bg-[var(--color-primary-soft)] text-sm font-black">{initials(user) || <UserIcon aria-hidden className="h-5 w-5" />}</span>
-          <span className="hidden min-w-0 xl:block">
-            <span className="block truncate text-sm font-bold">{user ? user.username : "Sign in"}</span>
-            <span className="block truncate text-xs text-[var(--color-text-secondary)]">{user ? user.email : "Customer account"}</span>
-          </span>
         </Link>
       </div>
     </aside>
@@ -195,8 +191,8 @@ export function BottomNav({ user, canPost }: { user: User | null; canPost: boole
 
 function DesktopMoreNavigation({ user, canPost, pathname }: { user: User | null; canPost: boolean; pathname: string }) {
   const [open, setOpen] = useState(false);
-  const items = useMemo(() => moreItems(canPost), [canPost]);
-  const moreActive = items.some((item) => isActive(pathname, item.href.split("?")[0]));
+  const items = useMemo(() => moreItems(canPost).filter((item) => item.href !== "/search"), [canPost]);
+  const moreActive = items.some((item) => !item.href.startsWith("/search?") && isActive(pathname, item.href.split("?")[0]));
   return (
     <div className="min-h-0">
       <button
@@ -205,32 +201,31 @@ function DesktopMoreNavigation({ user, canPost, pathname }: { user: User | null;
         aria-controls="desktop-more-navigation"
         aria-label={open ? "Collapse more navigation" : "Expand more navigation"}
         onClick={() => setOpen((value) => !value)}
-        className={`flex h-12 items-center justify-center gap-4 rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] xl:w-fit xl:justify-start xl:px-4 xl:text-xl ${open || moreActive ? "font-black" : "font-medium"}`}
+        title={open ? "Close More" : "More"}
+        className={`flex h-12 w-12 items-center justify-center rounded-full text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)] active:scale-[0.98] ${open || moreActive ? "bg-[var(--color-primary-soft)] font-black" : "font-medium"}`}
       >
         {open ? <ChevronUp aria-hidden className="h-6 w-6" strokeWidth={2.6} /> : <Ellipsis aria-hidden className="h-6 w-6" strokeWidth={2.2} />}
-        <span className="hidden text-xl xl:inline">{open ? "Less" : "More"}</span>
       </button>
       <div
         id="desktop-more-navigation"
         className={`grid transition-[grid-template-rows,opacity,transform] duration-180 motion-reduce:transition-none ${open ? "grid-rows-[1fr] opacity-100 translate-y-0" : "grid-rows-[0fr] opacity-0 -translate-y-1"}`}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="mt-1 max-h-[40vh] space-y-1 overflow-y-auto overscroll-contain pl-2 pr-1 [scrollbar-width:thin]">
+          <div className="mt-1 max-h-[40vh] space-y-1 overflow-y-auto overscroll-contain [scrollbar-width:thin]">
             {items.map(({ href, label, Icon }) => {
-              const active = isActive(pathname, href.split("?")[0]);
+              const active = !href.startsWith("/search?") && isActive(pathname, href.split("?")[0]);
               return (
-                <Link key={href} href={href} className={`flex h-10 items-center justify-center gap-3 rounded-full text-sm transition hover:bg-[var(--color-primary-soft)] xl:w-fit xl:justify-start xl:px-4 ${active ? "font-black" : "font-semibold text-[var(--color-text-secondary)]"}`}>
+                <Link key={href} href={href} aria-label={label} title={label} className={`flex h-10 w-10 items-center justify-center rounded-full text-sm transition hover:bg-[var(--color-primary-soft)] ${active ? "font-black" : "font-semibold text-[var(--color-text-secondary)]"}`}>
                   <Icon aria-hidden className="h-4.5 w-4.5" />
-                  <span className="hidden xl:inline">{label}</span>
                 </Link>
               );
             })}
             {user ? (
               <form action="/api/auth/sign-out" method="post">
-                <button className="flex h-10 w-full items-center justify-center gap-3 rounded-full text-sm font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-primary-soft)] xl:w-fit xl:justify-start xl:px-4"><LogOut aria-hidden className="h-4.5 w-4.5" /><span className="hidden xl:inline">Sign out</span></button>
+                <button aria-label="Sign out" title="Sign out" className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-[var(--color-text-secondary)] transition hover:bg-[var(--color-primary-soft)]"><LogOut aria-hidden className="h-4.5 w-4.5" /></button>
               </form>
             ) : (
-              <Link href="/auth/sign-in" className={`flex h-10 items-center justify-center gap-3 rounded-full text-sm transition hover:bg-[var(--color-primary-soft)] xl:w-fit xl:justify-start xl:px-4 ${isActive(pathname, "/auth/sign-in") ? "font-black" : "font-semibold text-[var(--color-text-secondary)]"}`}><LogIn aria-hidden className="h-4.5 w-4.5" /><span className="hidden xl:inline">Sign in</span></Link>
+              <Link href="/auth/sign-in" aria-label="Sign in" title="Sign in" className={`flex h-10 w-10 items-center justify-center rounded-full text-sm transition hover:bg-[var(--color-primary-soft)] ${isActive(pathname, "/auth/sign-in") ? "font-black" : "font-semibold text-[var(--color-text-secondary)]"}`}><LogIn aria-hidden className="h-4.5 w-4.5" /></Link>
             )}
           </div>
         </div>
