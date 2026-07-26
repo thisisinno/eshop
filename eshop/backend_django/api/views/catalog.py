@@ -172,7 +172,7 @@ class ProductActionAPIView(PermissionedCatalogAPIView):
         try:
             with transaction.atomic():
                 product = get_object_or_404(
-                    product_queryset().select_for_update(), pk=pk
+                    Product.objects.select_for_update(), pk=pk
                 )
                 if action == "approve":
                     product.status = Product.Status.ACTIVE
@@ -215,9 +215,15 @@ class ProductMediaDetailAPIView(PermissionedCatalogAPIView):
         return get_object_or_404(ProductMedia, product_id=pk, pk=media_id)
 
     def delete(self, request, pk, media_id):
-        media = self.get_object(pk, media_id)
-        product = media.product
         with transaction.atomic():
+            product = get_object_or_404(
+                Product.objects.select_for_update(), pk=pk
+            )
+            media = get_object_or_404(
+                ProductMedia.objects.select_for_update(),
+                product_id=product.pk,
+                pk=media_id,
+            )
             media.delete()
             if product.status == Product.Status.ACTIVE:
                 try:
@@ -229,15 +235,24 @@ class ProductMediaDetailAPIView(PermissionedCatalogAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def patch(self, request, pk, media_id):
-        media = self.get_object(pk, media_id)
-        serializer = ProductMediaSerializer(media, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
         filename = getattr(request.FILES.get("file"), "name", "media file")
         try:
             with transaction.atomic():
+                product = get_object_or_404(
+                    Product.objects.select_for_update(), pk=pk
+                )
+                media = get_object_or_404(
+                    ProductMedia.objects.select_for_update(),
+                    product_id=product.pk,
+                    pk=media_id,
+                )
+                serializer = ProductMediaSerializer(
+                    media, data=request.data, partial=True
+                )
+                serializer.is_valid(raise_exception=True)
                 media = serializer.save()
-                if media.product.status == Product.Status.ACTIVE:
-                    validate_product_activation(media.product)
+                if product.status == Product.Status.ACTIVE:
+                    validate_product_activation(product)
         except serializers.ValidationError:
             raise
         except DjangoValidationError as exc:

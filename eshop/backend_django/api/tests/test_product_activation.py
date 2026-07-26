@@ -3,14 +3,16 @@ from decimal import Decimal
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from api.models import (
-    AdminActivityLog, Product, ProductMedia, ProductSpecificationGroup,
-    ProductSpecificationOption, TraderProfile,
+    AdminActivityLog, Product, ProductCategory, ProductMedia,
+    ProductSpecificationGroup, ProductSpecificationOption, TraderProfile,
 )
 from api.serializers.catalog import ProductWriteSerializer
 
@@ -67,6 +69,48 @@ class ProductActivationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.ACTIVE)
+
+    def test_approval_locks_only_product_row_with_nullable_relations(self):
+        product = self.product(
+            branch=None,
+            category=None,
+            created_by=None,
+            updated_by=None,
+            view_360_enabled=False,
+        )
+        with CaptureQueriesContext(connection) as queries:
+            response = self.approve(product)
+
+        self.assertEqual(response.status_code, 200, response.data)
+        for field in (
+            "trader", "branch", "category", "media",
+            "specification_groups", "approval_readiness",
+        ):
+            self.assertIn(field, response.data)
+        self.assertIsNone(response.data["branch"])
+        self.assertIsNone(response.data["category"])
+
+        if connection.vendor == "postgresql":
+            locking_queries = [
+                query["sql"] for query in queries.captured_queries
+                if "FOR UPDATE" in query["sql"].upper()
+            ]
+            self.assertTrue(locking_queries)
+            product_lock = next(
+                query for query in locking_queries
+                if 'api_product' in query.lower()
+            )
+            self.assertNotIn(" JOIN ", product_lock.upper())
+
+    def test_approval_succeeds_with_nullable_branch_and_category(self):
+        category = ProductCategory.objects.create(name="Wearables")
+        product = self.product(branch=None, category=category)
+
+        response = self.approve(product)
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["category"], category.pk)
+        self.assertIsNone(response.data["branch"])
 
     def test_spin_approval_returns_actionable_400_for_zero_and_eleven_frames(self):
         for count in (0, 11):
@@ -237,6 +281,36 @@ class ProductActivationTests(TestCase):
         )
         self.assertEqual(blocked.status_code, 400)
         self.assertTrue(ProductMedia.objects.filter(pk=frames[0].pk).exists())
+
+    def test_active_spin_media_patch_rolls_back_invalid_frame_change(self):
+        product = self.product(
+            view_360_enabled=True, view_360_mode=Product.Viewer360Mode.SPIN
+        )
+        frames = self.add_spin_frames(product, 12)
+        self.assertEqual(self.approve(product).status_code, 200)
+
+        response = self.client.patch(
+            f"/api/catalog/products/{product.pk}/media/{frames[0].pk}/",
+            {"frame_index": frames[1].frame_index},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        frames[0].refresh_from_db()
+        self.assertEqual(frames[0].frame_index, 0)
+
+    def test_generic_patch_with_nullable_relations_succeeds(self):
+        product = self.product(branch=None, category=None)
+
+        response = self.client.patch(
+            f"/api/catalog/products/{product.pk}/",
+            {"name": "Updated nullable product"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        product.refresh_from_db()
+        self.assertEqual(product.name, "Updated nullable product")
 
     def test_active_model_cannot_delete_only_glb_but_draft_can(self):
         active = self.product(
