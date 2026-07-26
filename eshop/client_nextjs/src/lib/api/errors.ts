@@ -1,23 +1,22 @@
-const SAFE_FIELDS = new Set(["detail", "quantity", "product", "cart", "non_field_errors", "error"]);
-
 function cleanMessage(value: string) {
   const text = value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-  if (!text || /^<!doctype html/i.test(text) || /server error|traceback/i.test(text)) return "";
+  if (!text || /<(?:!doctype|html|head|body)\b/i.test(value) || /traceback|stack trace/i.test(text)) return "";
   return text;
 }
 
-function collect(data: unknown): string[] {
+function collect(data: unknown, depth = 0): string[] {
+  if (depth > 6) return [];
   if (typeof data === "string") {
     const text = cleanMessage(data);
     return text ? [text] : [];
   }
-  if (Array.isArray(data)) return data.flatMap(collect);
+  if (Array.isArray(data)) return data.flatMap((value) => collect(value, depth + 1));
   if (!data || typeof data !== "object") return [];
-  return Object.entries(data as Record<string, unknown>).flatMap(([field, value]) => {
-    if (field === "detail" && value && typeof value === "object") return collect(value);
-    if (!SAFE_FIELDS.has(field)) return [];
-    return collect(value);
-  });
+  return Object.values(data as Record<string, unknown>).flatMap((value) => collect(value, depth + 1));
+}
+
+export function extractDrfErrorMessage(data: unknown, fallback = "") {
+  return Array.from(new Set(collect(data))).slice(0, 2).join(" ") || fallback;
 }
 
 export async function parseApiError(response: Response, fallback = "Request failed.") {
@@ -28,5 +27,5 @@ export async function parseApiError(response: Response, fallback = "Request fail
   } catch {
     return fallback;
   }
-  return Array.from(new Set(collect(data))).slice(0, 2).join(" ") || fallback;
+  return extractDrfErrorMessage(data, fallback);
 }

@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Maximize2, X } from "lucide-react";
 import { toast } from "sonner";
-import type { Cart, ProductDetail } from "@/types/storefront";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import type { ProductDetail } from "@/types/storefront";
+import { ButtonLink } from "@/components/ui/Button";
 import { BookmarkButton, CartAction } from "./ProductActions";
-import { useCart } from "@/components/cart/CartProvider";
-import { parseApiError } from "@/lib/api/errors";
 import { ShareProductButton } from "./ShareProductButton";
 import { VerifiedBusinessBadge } from "@/components/store/VerifiedBusinessBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -19,10 +16,7 @@ import { ProductMediaLightbox } from "./ProductMediaLightbox";
 const money = (amount: string, currency: string) => `${currency} ${Number(amount).toLocaleString()}`;
 
 export function ProductQuickView({ productId, open, onClose }: { productId: number | null; open: boolean; onClose: () => void }) {
-  const router = useRouter();
-  const { hasProduct, setCartState } = useCart();
   const [product, setProduct] = useState<ProductDetail | null>(null);
-  const [cartLoading, setCartLoading] = useState(false);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -56,39 +50,6 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
   }, [open, onClose]);
 
   if (!open || !productId) return null;
-
-  async function addToCart(checkout = false) {
-    if (!product) return;
-    if (checkout && hasProduct(product.id)) {
-      onClose();
-      router.push("/checkout");
-      return;
-    }
-    setCartLoading(true);
-    const response = await fetch("/api/storefront/cart/items/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ product: product.id, quantity: product.minimum_order_quantity || 1 }),
-    });
-    setCartLoading(false);
-    if (response.status === 401) {
-      toast.error("Sign in to add products to your cart.");
-      router.push("/auth/sign-in");
-      return;
-    }
-    if (!response.ok) {
-      toast.error(await parseApiError(response, "Could not start checkout."));
-      return;
-    }
-    const cart = await response.json() as Cart;
-    setCartState(cart);
-    if (checkout) {
-      onClose();
-      router.push("/checkout");
-    } else {
-      toast.success(`${product.name} added to cart`);
-    }
-  }
 
   const visibleProduct = product?.id === productId ? product : null;
   const loading = !visibleProduct;
@@ -146,7 +107,7 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
                 <ShareProductButton product={visibleProduct} compact />
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <Button className="h-10" loading={cartLoading} variant="secondary" onClick={() => addToCart(true)}>Checkout</Button>
+                <CartAction productId={visibleProduct.id} productName={visibleProduct.name} minimumOrderQuantity={visibleProduct.minimum_order_quantity} stockQuantity={visibleProduct.stock_quantity} hasSelectableSpecifications={visibleProduct.has_selectable_specifications} productDetail={visibleProduct} checkout text="Checkout" onSuccess={onClose} className="h-10 !w-full border-black bg-black text-white hover:bg-black/85" />
                 <ButtonLink className="h-10 px-3 text-sm" href={`/products/${visibleProduct.id}`} variant="outline" onClick={onClose}>Full details</ButtonLink>
               </div>
             </>

@@ -57,20 +57,21 @@ body {
   inset: -4px;
   z-index: -1;
   border-radius: inherit;
-  background: conic-gradient(from 0deg, #050505 0 22%, transparent 22% 29%, #050505 29% 66%, transparent 66% 73%, #050505 73% 100%);
-  animation: brand-status-rotate 4s linear infinite;
+  border: 2px solid #080808;
+  background: white;
 }
 .brand-status-active::after {
   content: "";
   position: absolute;
   inset: -7px;
   z-index: -2;
-  border: 1px solid rgba(0, 0, 0, .22);
+  border: 2px solid rgba(0, 0, 0, .16);
   border-radius: inherit;
-  animation: brand-status-breathe 2.8s ease-in-out infinite;
+  opacity: 0;
+  animation: brand-status-halo 9s ease-out infinite;
 }
-.brand-status-seen::before { opacity: .5; }
-.brand-status-seen::after { opacity: .55; }
+.brand-status-seen::before { border-color: #777; }
+.brand-status-seen::after { animation-duration: 11s; }
 .brand-status-unseen::before { opacity: 1; }
 
 .skeleton-shimmer {
@@ -94,14 +95,10 @@ body {
   100% { transform: scale(1); }
 }
 
-@keyframes brand-status-cue {
-  0%, 100% { box-shadow: 0 0 0 2px #000; }
-  50% { box-shadow: 0 0 0 2px #000, 0 0 0 6px rgba(0, 0, 0, 0.08); }
-}
-@keyframes brand-status-rotate { to { transform: rotate(1turn); } }
-@keyframes brand-status-breathe {
-  0%, 100% { transform: scale(.96); opacity: .35; }
-  50% { transform: scale(1.04); opacity: .7; }
+@keyframes brand-status-halo {
+  0%, 84%, 100% { transform: scale(1); opacity: 0; }
+  87% { transform: scale(1); opacity: .35; }
+  92% { transform: scale(1.02); opacity: 0; }
 }
 
 @keyframes skeleton-shimmer {

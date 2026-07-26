@@ -71,6 +71,8 @@ export function CartAction({
   hasSelectableSpecifications = false,
   productDetail,
   checkout = false,
+  text,
+  onSuccess,
 }: {
   productId: number;
   productName: string;
@@ -82,6 +84,8 @@ export function CartAction({
   hasSelectableSpecifications?: boolean;
   productDetail?: ProductDetail;
   checkout?: boolean;
+  text?: string;
+  onSuccess?: () => void;
 }) {
   const router = useRouter();
   const { hasProduct, setCartState } = useCart();
@@ -122,6 +126,17 @@ export function CartAction({
     }
     if (!response.ok) {
       const message = await parseApiError(response, "Could not add product to cart.");
+      if (!optionIds.length && /(?:choose|select|required).*(?:option|size|colour|color)|specification/i.test(message)) {
+        setDrawerError(message);
+        setDrawerOpen(true);
+        if (!detail) {
+          setDetailLoading(true);
+          const detailResponse = await fetch(`/api/storefront/products/${productId}/`);
+          setDetailLoading(false);
+          if (detailResponse.ok) setDetail(await detailResponse.json() as ProductDetail);
+        }
+        return;
+      }
       setDrawerError(message);
       toast.error(message);
       return;
@@ -132,6 +147,7 @@ export function CartAction({
     setDrawerOpen(false);
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 520);
+    onSuccess?.();
     if (checkout) router.push("/checkout");
   }
 
@@ -161,9 +177,10 @@ export function CartAction({
       onClick={add}
       aria-label={label}
       title={label}
-      className={`relative grid ${dimensions} shrink-0 place-items-center rounded-full border border-[var(--color-border-strong)] bg-white text-[var(--color-text)] transition duration-180 hover:-translate-y-0.5 hover:bg-[var(--color-primary-soft)] active:scale-[0.94] disabled:pointer-events-none disabled:text-[var(--color-text-secondary)] disabled:opacity-50 motion-reduce:transition-none ${justAdded ? "cart-action-added" : ""} ${className}`}
+      className={`relative ${text ? "inline-flex px-5" : "grid"} ${dimensions} shrink-0 place-items-center items-center justify-center gap-2 rounded-full border border-[var(--color-border-strong)] bg-white text-[var(--color-text)] transition duration-180 hover:-translate-y-0.5 hover:bg-[var(--color-primary-soft)] active:scale-[0.94] disabled:pointer-events-none disabled:text-[var(--color-text-secondary)] disabled:opacity-50 motion-reduce:transition-none ${justAdded ? "cart-action-added" : ""} ${className}`}
     >
       {loading ? <Loader2 aria-hidden className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <ShoppingBag aria-hidden className={`${icon} transition duration-180 ${justAdded ? "scale-90 opacity-70" : ""} motion-reduce:transition-none`} />}
+      {text ? <span className="text-sm font-bold">{text}</span> : null}
       {(inCart || justAdded) && !loading ? (
         <span className="absolute -right-0.5 -top-0.5 grid h-4 w-4 place-items-center rounded-full bg-[var(--color-black)] text-white">
           <Check aria-hidden className="h-3 w-3" strokeWidth={3} />

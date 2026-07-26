@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { extractDrfErrorMessage } from "./errors";
 
 const API_URL = (process.env.DJANGO_API_URL || process.env.NEXT_PUBLIC_DJANGO_API_URL || "https://eshop.schoolsoft.online/api").replace(/\/$/, "");
 export const TOKEN_COOKIE = "eshop_customer_token";
@@ -8,7 +9,7 @@ export const ANON_COOKIE = "eshop_anon_session";
 
 export class DjangoApiError extends Error {
   constructor(public status: number, public data: unknown) {
-    super(typeof data === "object" && data && "detail" in data ? String((data as { detail: unknown }).detail) : `Django API error ${status}`);
+    super(extractDrfErrorMessage(data, `Django API error ${status}`));
   }
 }
 
