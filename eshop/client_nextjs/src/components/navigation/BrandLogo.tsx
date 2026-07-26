@@ -61,9 +61,9 @@ export function BrandLogo({ branding, user, className = "" }: { branding: SiteBr
   }, []);
 
   const inner = (
-    <span className={`brand-logo relative grid shrink-0 place-items-center rounded-full border bg-white transition duration-180 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.08)] active:scale-[0.96] motion-reduce:transition-none ${hasStatuses ? (!seenStateReady ? "border-[var(--color-border-strong)]" : unseen ? "brand-logo-status-unseen border-black" : "border-[var(--color-border-strong)] ring-2 ring-gray-300") : "border-[var(--color-border)]"} ${className}`}>
+    <span className={`brand-logo relative grid shrink-0 place-items-center rounded-full border bg-white transition duration-180 hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(0,0,0,0.08)] active:scale-[0.96] motion-reduce:transition-none ${hasStatuses ? `brand-status-active ${!seenStateReady || unseen ? "brand-status-unseen" : "brand-status-seen"}` : "border-[var(--color-border)]"} ${className}`}>
       <span className="relative grid h-full w-full place-items-center overflow-hidden rounded-full bg-white">
-        {logo ? <Image src={logo} alt={branding.logo_alt_text || branding.site_name} fill sizes="48px" className="object-contain p-1" /> : <span className="px-2 text-sm font-black">{branding.site_name || "eShop"}</span>}
+        {logo ? <Image src={logo} alt={branding.logo_alt_text || branding.site_name} fill sizes="48px" className="object-contain p-1" /> : <span className="px-2 text-sm font-black">{branding.site_name || "SmartWear"}</span>}
       </span>
     </span>
   );

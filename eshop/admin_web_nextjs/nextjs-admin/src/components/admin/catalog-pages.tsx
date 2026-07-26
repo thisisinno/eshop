@@ -366,6 +366,8 @@ type FormValues = {
   specifications: SpecRow[];
   has_selectable_specifications: boolean;
   specification_groups: ProductSpecificationGroup[];
+  view_360_enabled: boolean;
+  view_360_mode: "spin" | "model";
   status: ProductStatus;
   is_featured: boolean;
   is_discountable: boolean;
@@ -391,6 +393,8 @@ const emptyForm: FormValues = {
   specifications: [{ key: "", value: "" }],
   has_selectable_specifications: false,
   specification_groups: [],
+  view_360_enabled: false,
+  view_360_mode: "spin",
   status: "draft",
   is_featured: false,
   is_discountable: true,
@@ -426,6 +430,9 @@ export function ProductFormPage({
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [products, setProducts] = useState<ProductListItem[]>([]);
   const [files, setFiles] = useState<File[]>([]);
+  const [spinFiles, setSpinFiles] = useState<File[]>([]);
+  const [modelFile, setModelFile] = useState<File | null>(null);
+  const [posterFile, setPosterFile] = useState<File | null>(null);
   const [existingMedia, setExistingMedia] = useState<ProductMedia[]>([]);
   const [previewUrls, setPreviewUrls] = useState<
     { file: File; url: string; type: "image" | "clip" }[]
@@ -454,6 +461,8 @@ export function ProductFormPage({
       specifications: specsToRows(product.specifications),
       has_selectable_specifications: product.has_selectable_specifications,
       specification_groups: product.specification_groups,
+      view_360_enabled: product.view_360_enabled,
+      view_360_mode: product.view_360_mode,
       status: product.status,
       is_featured: product.is_featured,
       is_discountable: product.is_discountable,
@@ -547,6 +556,20 @@ export function ProductFormPage({
         } catch (error) {
           failedUploads.push(`${file.name} — ${errorMessage(error)}`);
         }
+      }
+      const specializedUploads: Array<{ file: File; media_type: "spin_frame" | "model_3d" | "poster"; sort_order: number; frame_index?: number }> = [
+        ...spinFiles.map((file, index) => ({ file, media_type: "spin_frame" as const, sort_order: index, frame_index: index })),
+        ...(modelFile ? [{ file: modelFile, media_type: "model_3d" as const, sort_order: 0 }] : []),
+        ...(posterFile ? [{ file: posterFile, media_type: "poster" as const, sort_order: customerSlides.length }] : []),
+      ];
+      for (const upload of specializedUploads) {
+        const body = new FormData();
+        body.set("file", upload.file);
+        body.set("media_type", upload.media_type);
+        body.set("sort_order", String(upload.sort_order));
+        if (upload.frame_index !== undefined) body.set("frame_index", String(upload.frame_index));
+        try { await apiPost(`/catalog/products/${product.id}/media/`, body); }
+        catch (error) { failedUploads.push(`${upload.file.name} — ${errorMessage(error)}`); }
       }
       if (id)
         await apiGet<Product>(`/catalog/products/${product.id}/`).then(
@@ -793,6 +816,38 @@ export function ProductFormPage({
             onEnabled={(value) => set("has_selectable_specifications", value)}
             onChange={(value) => set("specification_groups", value)}
           />
+          <Field label="Interactive product view" className="md:col-span-2">
+            <label className="flex items-center gap-3 font-medium">
+              <input type="checkbox" checked={form.view_360_enabled} onChange={(e) => set("view_360_enabled", e.target.checked)} />
+              Enable 360 / 3D view
+            </label>
+            {form.view_360_enabled && (
+              <div className="mt-3 rounded-lg border border-stroke p-4 dark:border-dark-3">
+                <div className="flex flex-wrap gap-5">
+                  <label className="flex items-center gap-2"><input type="radio" checked={form.view_360_mode === "spin"} onChange={() => set("view_360_mode", "spin")} />360 image spin</label>
+                  <label className="flex items-center gap-2"><input type="radio" checked={form.view_360_mode === "model"} onChange={() => set("view_360_mode", "model")} />Interactive 3D model</label>
+                </div>
+                {form.view_360_mode === "spin" ? (
+                  <div className="mt-4 text-sm">
+                    <p className="font-medium">360° image spin</p>
+                    <p className="mt-1">Photograph the product from the same distance and height while rotating it around its center. Keep lighting and background consistent.</p>
+                    <p className="mt-2 font-medium">Minimum: 12 frames · Recommended: 24–36 frames</p>
+                    <p className="mt-1">{specializedMedia.filter((item) => item.media_type === "spin_frame").length} / 12 minimum frames uploaded · {specializedMedia.filter((item) => item.media_type === "spin_frame").length >= 12 ? "Ready" : "Not ready"}</p>
+                    <input className={`${input} mt-3`} type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(e) => setSpinFiles(Array.from(e.target.files || []))} />
+                    {spinFiles.length ? <p className="mt-2 font-medium">{spinFiles.length} ordered frames selected for upload</p> : null}
+                  </div>
+                ) : (
+                  <div className="mt-4 text-sm">
+                    <p className="font-medium">Upload GLB model</p>
+                    <p className="mt-1">Upload a GLB/glTF binary model. Customers can drag to rotate and zoom the product. Add a poster image for loading and unsupported devices.</p>
+                    <p className="mt-2 font-medium">{specializedMedia.some((item) => item.media_type === "model_3d") ? "Model uploaded · Ready" : "No .GLB model uploaded · Not ready"}</p>
+                    <input className={`${input} mt-3`} type="file" accept=".glb,model/gltf-binary" onChange={(e) => setModelFile(e.target.files?.[0] || null)} />
+                    <label className="mt-3 block font-medium">Poster / preview image<input className={`${input} mt-1`} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPosterFile(e.target.files?.[0] || null)} /></label>
+                  </div>
+                )}
+              </div>
+            )}
+          </Field>
           <Field label="Status">
             <select
               className={input}
@@ -813,7 +868,7 @@ export function ProductFormPage({
             onChange={(value) => set("position", value)}
             helper="Leave empty to assign the next position automatically"
           />
-          <Field label="Media" className="md:col-span-2">
+          <Field label="Product gallery & slides" className="md:col-span-2">
             <input
               className={input}
               type="file"
@@ -822,8 +877,7 @@ export function ProductFormPage({
               onChange={(e) => setFiles(Array.from(e.target.files || []))}
             />
             <p className="mt-1 text-xs">
-              Images and short clips upload after the product is saved. The
-              order shown here is the order customers will swipe.
+              Images and short videos appear to customers in this order. The first image is the cover.
             </p>
             {previewUrls.length > 0 && (
               <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -847,7 +901,7 @@ export function ProductFormPage({
                     )}
                     <div className="mt-2 flex items-center gap-2">
                       <span className="rounded bg-gray-2 px-2 py-1 text-[10px] dark:bg-dark-2">
-                        {index + 1}
+                        Slide {index + 1}
                       </span>
                       <p className="min-w-0 flex-1 truncate text-xs">
                         {item.file.name}
@@ -917,7 +971,7 @@ export function ProductFormPage({
                             disabled={media.is_primary || media.media_type !== "image"}
                             onClick={() => void setPrimaryMedia(media)}
                           >
-                            Set primary
+                            Set cover
                           </button>
                           <button type="button" disabled={reorderBusy || index === 0} aria-label={`Move ${media.file_name || media.title || "media"} earlier`} className="text-primary hover:underline disabled:opacity-40" onClick={() => void moveExisting(media, -1)}>Move earlier</button>
                           <button type="button" disabled={reorderBusy || index === customerSlides.length - 1} aria-label={`Move ${media.file_name || media.title || "media"} later`} className="text-primary hover:underline disabled:opacity-40" onClick={() => void moveExisting(media, 1)}>Move later</button>

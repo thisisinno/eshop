@@ -96,7 +96,7 @@ export function SearchClient({ initialQuery, initialData, initialFilters }: { in
       <div className="border-b border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)]">
         {loading ? "Searching..." : `${data.count} results`}
       </div>
-      {data.results.length ? <div className="product-grid-two p-3 md:p-4">{data.results.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="p-4"><EmptyState title={query ? "No products found" : "Search eShop"}>{query ? "Try a different search or remove filters." : "Start typing to find products, stores, and categories."}</EmptyState></div>}
+      {data.results.length ? <div className="product-grid-two p-3 md:p-4">{data.results.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="p-4"><EmptyState title={query ? "No products found" : "Search SmartWear"}>{query ? "Try a different search or remove filters." : "Start typing to find products, stores, and categories."}</EmptyState></div>}
       <SortDrawer open={sortOpen} value={sort} onChange={setSort} onClose={() => setSortOpen(false)} returnFocusRef={sortTriggerRef} />
     </>
   );

@@ -154,7 +154,7 @@ export function Header({ branding, user }: { branding: SiteBranding; user: User 
     <header className="fixed inset-x-0 top-0 z-40 flex h-[58px] items-center justify-between border-b border-[var(--color-border)] bg-white/95 px-4 backdrop-blur md:hidden">
       <BrandLogo branding={branding} user={user} className="h-10 w-10" />
       <div className="pointer-events-none absolute left-1/2 max-w-[calc(100vw-152px)] -translate-x-1/2 truncate text-base font-black text-[var(--color-text)]">
-        {branding.site_name || "eShop"}
+        {branding.site_name || "SmartWear"}
       </div>
       <div className="flex shrink-0 items-center gap-0.5">
         <NavigationAction href="/search" label="Search" Icon={Search} className="grid h-10 w-10 place-items-center rounded-full hover:bg-[var(--color-primary-soft)]" />

@@ -15,17 +15,18 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
   const minimum = Math.max(1, product.minimum_order_quantity || 1);
   const unavailable = product.stock_quantity <= 0 || product.stock_quantity < minimum;
   return (
-    <section className="border-t border-[var(--color-border)] bg-white p-3 md:border-t-0 md:p-5 lg:pt-5">
+    <section className="border-t border-[var(--color-border)] bg-white px-4 py-6 md:border-t-0 md:p-6 lg:px-0 lg:py-8">
       <div className="mx-auto max-w-xl lg:max-w-none">
         <Link href={`/stores/${product.store.slug}`} className="inline-flex max-w-full items-center gap-1.5 text-xs font-bold text-[var(--color-text-secondary)] hover:underline md:text-sm">
           <span className="truncate">{product.store.business_name}</span>
           {product.store.is_verified ? <VerifiedBusinessBadge /> : null}
         </Link>
-        <h1 className="mt-1 text-lg font-black leading-snug md:mt-2 md:text-2xl">{product.name}</h1>
+        <h1 className="mt-2 text-2xl font-black leading-tight tracking-[-.025em] md:text-4xl">{product.name}</h1>
         <div className="mt-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 md:mt-4">
           <p className="text-xl font-black md:text-2xl">{money(product.price, product.currency)}</p>
           {product.compare_at_price ? <span className="text-sm text-[var(--color-text-secondary)] line-through">{money(product.compare_at_price, product.currency)}</span> : null}
         </div>
+        {product.short_description ? <p className="mt-5 text-sm leading-6 text-[var(--color-text-secondary)] md:text-base">{product.short_description}</p> : null}
         <div className="mt-3 grid gap-1.5 text-sm md:mt-4 md:gap-2">
           <p className="font-semibold text-[var(--color-text)]">{unavailable ? "Currently unavailable" : `${product.stock_quantity} in stock`}</p>
           <p className="inline-flex items-center gap-2 text-[var(--color-text-secondary)]"><Truck aria-hidden className="h-4 w-4" />{Number(product.delivery_fee) > 0 ? `${money(product.delivery_fee, product.currency)} delivery` : "Free delivery"}</p>

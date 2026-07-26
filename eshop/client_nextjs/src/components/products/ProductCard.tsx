@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Info } from "lucide-react";
+import { Eye } from "lucide-react";
 import { useState } from "react";
 import type { ProductCard as ProductCardType } from "@/types/storefront";
 import { CartAction, BookmarkButton } from "./ProductActions";
@@ -41,10 +41,10 @@ export function ProductCard({ product, variant = "discovery" }: { product: Produ
             {discount ? <span className="text-[12px] font-semibold text-[var(--color-text-secondary)]">{discount}% off</span> : null}
           </div>
           <div className="mt-auto flex min-h-11 items-center gap-1.5 border-t border-[var(--color-border)] pt-2">
-            {variant === "my-list" ? <CartAction productId={product.id} productName={product.name} minimumOrderQuantity={product.minimum_order_quantity} stockQuantity={product.stock_quantity} hasSelectableSpecifications={product.has_selectable_specifications} /> : null}
             <BookmarkButton productId={product.id} initialBookmarked={product.is_bookmarked} compact={variant === "my-list"} />
+            <CartAction productId={product.id} productName={product.name} minimumOrderQuantity={product.minimum_order_quantity} stockQuantity={product.stock_quantity} hasSelectableSpecifications={product.has_selectable_specifications} />
             <IconButton aria-label={`Quick view ${product.name}`} title="Quick view" onClick={() => setQuickViewOpen(true)} className={`product-card-action ${variant === "my-list" ? "h-9 w-9" : ""}`}>
-              <Info aria-hidden className="h-4.5 w-4.5" />
+              <Eye aria-hidden className="h-4.5 w-4.5" />
             </IconButton>
           </div>
         </div>

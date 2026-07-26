@@ -1,5 +1,6 @@
 from decimal import Decimal
 from io import StringIO
+from importlib import import_module
 
 from django.contrib.auth.models import Permission, User
 from django.core.exceptions import ValidationError
@@ -38,6 +39,31 @@ class StorefrontAPITests(TestCase):
     def auth(self, user):
         token, _ = Token.objects.get_or_create(user=user)
         self.client.credentials(HTTP_AUTHORIZATION=f"Token {token.key}")
+
+    def test_default_and_current_branding_is_smartwear(self):
+        branding = SiteBranding.get_current()
+        self.assertEqual(branding.site_name, "SmartWear")
+        response = self.client.get("/api/storefront/branding/")
+        self.assertEqual(response.data["site_name"], "SmartWear")
+
+    def test_legacy_branding_migration_preserves_logo_and_custom_names(self):
+        legacy = SiteBranding.get_current()
+        legacy.site_name = "eShop"
+        legacy.logo = SimpleUploadedFile("custom-logo.png", b"logo", content_type="image/png")
+        legacy.save()
+        logo_name = legacy.logo.name
+        migration = import_module("api.migrations.0012_smartwear_branding")
+        from django.apps import apps
+        migration.migrate_legacy_branding(apps, None)
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.site_name, "SmartWear")
+        self.assertEqual(legacy.logo.name, logo_name)
+
+        legacy.site_name = "Tailored House"
+        legacy.save()
+        migration.migrate_legacy_branding(apps, None)
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.site_name, "Tailored House")
 
     def test_public_signup_creates_non_staff_customer(self):
         response = self.client.post("/api/auth/signup/", {"username": "newcustomer", "email": "new@example.com", "password": "password123", "confirm_password": "password123"}, format="json")

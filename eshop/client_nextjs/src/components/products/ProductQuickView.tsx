@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { Maximize2, X } from "lucide-react";
 import { toast } from "sonner";
 import type { Cart, ProductDetail } from "@/types/storefront";
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -14,6 +14,7 @@ import { ShareProductButton } from "./ShareProductButton";
 import { VerifiedBusinessBadge } from "@/components/store/VerifiedBusinessBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ProductMediaCarousel } from "./ProductMediaCarousel";
+import { ProductMediaLightbox } from "./ProductMediaLightbox";
 
 const money = (amount: string, currency: string) => `${currency} ${Number(amount).toLocaleString()}`;
 
@@ -22,6 +23,8 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
   const { hasProduct, setCartState } = useCart();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [cartLoading, setCartLoading] = useState(false);
+  const [mediaIndex, setMediaIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -97,7 +100,7 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
   return (
     <div className="fixed inset-0 z-[80]" role="dialog" aria-modal="true" aria-label="Product quick view">
       <button aria-label="Close quick view" className="absolute inset-0 h-full w-full bg-black/25" onClick={onClose} />
-      <div ref={panelRef} tabIndex={-1} className="absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col overflow-hidden rounded-t-2xl bg-white outline-none md:left-1/2 md:right-auto md:top-1/2 md:h-auto md:max-h-[86vh] md:w-[680px] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-2xl">
+      <div ref={panelRef} tabIndex={-1} className="absolute inset-x-0 bottom-0 flex max-h-[92vh] flex-col overflow-hidden rounded-t-2xl bg-white outline-none md:inset-y-0 md:left-auto md:right-0 md:h-full md:max-h-none md:w-[min(760px,92vw)] md:rounded-none">
         <div className="shrink-0 border-b border-[var(--color-border)] bg-white px-4 py-3">
           <div className="flex items-center justify-between gap-3">
             <h2 className="truncate text-base font-black">Quick view</h2>
@@ -106,13 +109,14 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {loading ? <QuickViewSkeleton /> : visibleProduct ? (
-          <div className="grid gap-0 min-[360px]:grid-cols-[minmax(110px,40%)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(280px,.85fr)]">
+          <div className="grid gap-0 md:grid-cols-[minmax(0,1.15fr)_minmax(280px,.85fr)]">
             <div className="p-3">
-              <div className="relative aspect-square overflow-hidden rounded-xl bg-[var(--color-primary-soft)]">
-                <ProductMediaCarousel media={media} alt={visibleProduct.name} imageSizes="(max-width: 767px) 42vw, 380px" />
+              <div className="relative aspect-[4/5] max-h-[62vh] overflow-hidden rounded-xl bg-[var(--color-primary-soft)]">
+                <ProductMediaCarousel media={media} alt={visibleProduct.name} imageSizes="(max-width: 767px) 100vw, 430px" objectFit="contain" activeIndex={mediaIndex} onIndexChange={setMediaIndex} />
+                <button onClick={() => setLightboxOpen(true)} className="absolute right-3 top-3 inline-flex h-9 items-center gap-2 rounded-full border border-black/10 bg-white/95 px-3 text-xs font-bold"><Maximize2 className="h-4 w-4" />View image · {mediaIndex + 1}/{media.length}</button>
               </div>
             </div>
-            <div className="flex min-w-0 flex-col p-3 min-[360px]:pl-0 md:p-5">
+            <div className="flex min-w-0 flex-col p-4 md:p-5">
               <Link href={`/stores/${visibleProduct.store.slug}`} className="inline-flex max-w-full items-center gap-1.5 text-xs font-semibold text-[var(--color-text-secondary)] hover:underline md:text-sm">
                 <span className="truncate">{visibleProduct.store.business_name}</span>
                 {visibleProduct.store.is_verified ? <VerifiedBusinessBadge /> : null}
@@ -130,6 +134,7 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
           </div>
         ) : <div className="grid min-h-[300px] place-items-center text-sm text-[var(--color-text-secondary)]">Product details are unavailable.</div>}
         </div>
+        {visibleProduct ? <ProductMediaLightbox media={media} initialIndex={mediaIndex} open={lightboxOpen} alt={visibleProduct.name} onClose={() => setLightboxOpen(false)} onIndexChange={setMediaIndex} /> : null}
         <div className="shrink-0 border-t border-[var(--color-border)] bg-white p-3 pb-[calc(12px+env(safe-area-inset-bottom))]">
           {loading ? (
             <div className="space-y-3"><div className="grid grid-cols-3 gap-2"><Skeleton className="h-10 rounded-full" /><Skeleton className="h-10 rounded-full" /><Skeleton className="h-10 rounded-full" /></div><div className="grid grid-cols-2 gap-2"><Skeleton className="h-10 rounded-full" /><Skeleton className="h-10 rounded-full" /></div></div>
@@ -154,7 +159,7 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
 
 function QuickViewSkeleton() {
   return (
-    <div className="grid gap-0 min-[360px]:grid-cols-[minmax(110px,40%)_minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(280px,.85fr)]">
+    <div className="grid gap-0 md:grid-cols-[minmax(0,1.15fr)_minmax(280px,.85fr)]">
       <div className="p-3">
         <Skeleton className="aspect-square rounded-xl" />
         <div className="mt-2 grid grid-cols-4 gap-2">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="aspect-square rounded-lg" />)}</div>

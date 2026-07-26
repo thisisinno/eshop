@@ -330,7 +330,7 @@ class ProductMedia(models.Model):
 
 
 class SiteBranding(models.Model):
-    site_name = models.CharField(max_length=120, default="eShop")
+    site_name = models.CharField(max_length=120, default="SmartWear")
     logo = models.ImageField(upload_to=site_logo_upload_path, null=True, blank=True)
     logo_alt_text = models.CharField(max_length=160, blank=True)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="updated_site_branding")
@@ -346,7 +346,7 @@ class SiteBranding(models.Model):
 
     @classmethod
     def get_current(cls):
-        branding, _ = cls.objects.get_or_create(pk=1, defaults={"site_name": "eShop"})
+        branding, _ = cls.objects.get_or_create(pk=1, defaults={"site_name": "SmartWear"})
         return branding
 
     def clean(self):

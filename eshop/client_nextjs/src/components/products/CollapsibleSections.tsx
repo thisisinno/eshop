@@ -9,14 +9,14 @@ const money = (amount: string, currency: string) => `${currency} ${Number(amount
 export function CollapsibleSections({ product }: { product: ProductDetail }) {
   const specs = Object.entries(product.specifications || {}).filter(([, value]) => value !== null && value !== undefined && String(value).trim());
   const sections = [
-    { title: "Description", content: product.description || "No description provided.", kind: "text" },
-    { title: "Specifications", content: specs, kind: "specs" },
+    { title: "About this item", content: product.description || "No description provided.", kind: "text" },
+    { title: "Product specifications", content: specs, kind: "specs" },
     { title: "Delivery", content: Number(product.delivery_fee) > 0 ? `${money(product.delivery_fee, product.currency)} delivery` : "Free delivery", kind: "text" },
     { title: "Store information", content: `${product.store.business_name}${product.store.location_summary ? ` · ${product.store.location_summary}` : ""}`, kind: "text" },
   ] as const;
-  const [open, setOpen] = useState("Description");
+  const [open, setOpen] = useState("About this item");
   return (
-    <section className="mt-4 overflow-hidden rounded-lg border border-[var(--color-border)] bg-white shadow-sm">
+    <section className="my-8 overflow-hidden border-y border-[var(--color-border)] bg-white lg:mx-6 lg:grid lg:grid-cols-2 lg:border">
       {sections.map((section) => (
         <div key={section.title} className="border-b border-[var(--color-border)] last:border-b-0">
           <button className="flex w-full items-center justify-between px-4 py-4 text-left font-bold" onClick={() => setOpen((current) => current === section.title ? "" : section.title)}>

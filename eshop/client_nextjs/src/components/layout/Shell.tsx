@@ -14,7 +14,7 @@ export async function Shell({ children, user }: { children: React.ReactNode; use
     serverGet<StoreSummary[]>("/storefront/stores/").catch(() => []),
     serverGet<HomeResponse>("/storefront/home/").catch(() => ({ shelves: [] })),
     user ? serverGet<{ count: number }>("/storefront/notifications/unread-count/").catch(() => ({ count: 0 })) : Promise.resolve({ count: 0 }),
-    serverGet<SiteBranding>("/storefront/branding/").catch(() => ({ site_name: "eShop", logo_url: null, logo_alt_text: "", statuses: [], updated_at: "" })),
+    serverGet<SiteBranding>("/storefront/branding/").catch(() => ({ site_name: "SmartWear", logo_url: null, logo_alt_text: "", statuses: [], updated_at: "" })),
     user ? serverGet<{ count: number }>("/storefront/bookmarks/?page_size=1").catch(() => ({ count: 0 })) : Promise.resolve({ count: 0 }),
   ]);
   const recent = home.shelves.find((shelf) => shelf.key === "recently_viewed")?.products ?? [];

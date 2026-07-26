@@ -10,5 +10,8 @@ export async function getCurrentUser() {
 }
 
 export function canPostProduct(user: User | null) {
-  return Boolean(user?.is_staff && (user.is_superuser || user.permissions?.includes("api.add_product")));
+  return Boolean(user?.is_staff && (user.is_superuser || (
+    user.permissions?.includes("api.add_product") &&
+    user.permissions?.includes("api.change_product")
+  )));
 }

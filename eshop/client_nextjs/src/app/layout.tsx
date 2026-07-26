@@ -13,11 +13,11 @@ const geist = localFont({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Storefront", template: "%s | Storefront" },
-  description: "Responsive customer ecommerce storefront",
+  title: { default: "SmartWear", template: "%s | SmartWear" },
+  description: "Discover premium fashion, accessories, and trusted stores on SmartWear.",
   manifest: "/manifest.webmanifest",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3001"),
-  openGraph: { siteName: "Storefront", type: "website" },
+  openGraph: { siteName: "SmartWear", type: "website" },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#ffffff" };
