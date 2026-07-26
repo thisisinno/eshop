@@ -159,12 +159,10 @@ class Product(models.Model):
             errors["branch"] = "The selected branch does not belong to the selected trader."
         if self.specifications is not None and not isinstance(self.specifications, dict):
             errors["specifications"] = "Specifications must be an object."
-        if self.status == self.Status.ACTIVE and self.view_360_enabled and self.pk:
-            media = self.media.all()
-            if self.view_360_mode == self.Viewer360Mode.SPIN and media.filter(media_type=ProductMedia.MediaType.SPIN_FRAME).count() < ProductMedia.MIN_SPIN_FRAME_COUNT:
-                errors["view_360_mode"] = f"Active products require at least {ProductMedia.MIN_SPIN_FRAME_COUNT} ordered 360 frames."
-            if self.view_360_mode == self.Viewer360Mode.MODEL and not media.filter(media_type=ProductMedia.MediaType.MODEL_3D).exists():
-                errors["view_360_mode"] = "Active products require a GLB model when 3D model mode is selected."
+        if self.status == self.Status.ACTIVE:
+            # Local import avoids a models -> services -> models import cycle.
+            from api.services.products import get_interactive_view_activation_issues
+            errors.update(get_interactive_view_activation_issues(self))
         if errors:
             raise ValidationError(errors)
 

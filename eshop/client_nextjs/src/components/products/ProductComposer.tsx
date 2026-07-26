@@ -27,13 +27,20 @@ export function ProductComposer() {
   const [draftProductId, setDraftProductId] = useState<number | null>(null);
   const [media, setMedia] = useState<ProductMedia[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [publishError, setPublishError] = useState("");
   const [draft, setDraft] = useState({
     name: "", sku: "", currency: "TZS", unit: "", short_description: "", description: "",
     price: "", compare_at_price: "", delivery_fee: "0", stock_quantity: "0", minimum_order_quantity: "1",
     view_360_enabled: false, view_360_mode: "spin" as "spin" | "model",
   });
   const updateDraft = (key: keyof typeof draft, value: string | boolean) => setDraft((current) => ({ ...current, [key]: value }));
-  async function saveDraft(status = "draft") {
+  const spinFrameCount = new Set(media.filter((item) => item.media_type === "spin_frame" && item.frame_index !== null).map((item) => item.frame_index)).size;
+  const hasModel = media.some((item) => item.media_type === "model_3d");
+  const interactiveReady = !draft.view_360_enabled || (draft.view_360_mode === "spin" ? spinFrameCount >= 12 : hasModel);
+  const interactiveGuidance = draft.view_360_mode === "spin"
+    ? `Upload ${Math.max(0, 12 - spinFrameCount)} more frame${12 - spinFrameCount === 1 ? "" : "s"}, or continue without 360.`
+    : "Upload a GLB model, or continue without 360.";
+  async function saveDraft(status = "draft", overrides: Partial<typeof draft> = {}) {
     const nextErrors: Record<string, string> = {};
     if (!trader) nextErrors.trader = "Select a store.";
     if (!category) nextErrors.category = "Select a category.";
@@ -44,7 +51,7 @@ export function ProductComposer() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) throw new Error("Complete the required product details.");
     setLoading(true);
-    const payload: Record<string, unknown> = { ...draft, status };
+    const payload: Record<string, unknown> = { ...draft, ...overrides, status };
     payload.specifications = Object.fromEntries(specs.map((item) => [item.key.trim(), item.value.trim()]).filter(([key, value]) => key && value));
     payload.trader = trader;
     payload.category = category;
@@ -67,8 +74,23 @@ export function ProductComposer() {
   }
   async function publish(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!interactiveReady) {
+      setPublishError(`Interactive view isn't ready yet. ${interactiveGuidance}`);
+      return;
+    }
+    setPublishError("");
     try { await saveDraft("pending_review"); toast.success("Product submitted for review."); }
     catch (error) { toast.error(error instanceof Error ? error.message : "Product could not be saved."); }
+  }
+  async function continueWithout360() {
+    setPublishError("");
+    setDraft((current) => ({ ...current, view_360_enabled: false }));
+    try {
+      await saveDraft("pending_review", { view_360_enabled: false });
+      toast.success("360 / 3D disabled. Product submitted for review.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Product could not be saved.");
+    }
   }
   async function continueStep() {
     try {
@@ -96,7 +118,7 @@ export function ProductComposer() {
         {step === 1 ? <div className="grid gap-3"><Controlled label="Product name" value={draft.name} onChange={(v) => updateDraft("name", v)} error={errors.name} required /><div className="grid gap-3 sm:grid-cols-3"><Controlled label="SKU" value={draft.sku} onChange={(v) => updateDraft("sku", v)} /><Controlled label="Currency" value={draft.currency} onChange={(v) => updateDraft("currency", v)} /><Controlled label="Unit" value={draft.unit} onChange={(v) => updateDraft("unit", v)} placeholder="piece, box, kg" /></div><Controlled label="Short description" value={draft.short_description} onChange={(v) => updateDraft("short_description", v)} /><textarea value={draft.description} onChange={(e) => updateDraft("description", e.target.value)} placeholder="Full description" className="min-h-32 rounded-lg border border-[var(--color-border-strong)] p-3 text-sm focus:border-[var(--color-text)] focus:outline-none" /><div className="grid gap-3 sm:grid-cols-3"><Controlled label="Price" value={draft.price} onChange={(v) => updateDraft("price", v)} error={errors.price} type="number" step="0.01" required /><Controlled label="Compare at price" value={draft.compare_at_price} onChange={(v) => updateDraft("compare_at_price", v)} type="number" step="0.01" /><Controlled label="Delivery cost" value={draft.delivery_fee} onChange={(v) => updateDraft("delivery_fee", v)} type="number" step="0.01" /></div><div className="grid gap-3 sm:grid-cols-2"><Controlled label="Stock" value={draft.stock_quantity} onChange={(v) => updateDraft("stock_quantity", v)} error={errors.stock_quantity} type="number" required /><Controlled label="Minimum order quantity" value={draft.minimum_order_quantity} onChange={(v) => updateDraft("minimum_order_quantity", v)} error={errors.minimum_order_quantity} type="number" /></div><SpecificationEditor specs={specs} setSpecs={setSpecs} /><SelectableSpecificationEditor enabled={hasSelectable} setEnabled={setHasSelectable} groups={groups} setGroups={setGroups} /></div> : null}
         {step === 2 ? <MediaUploader productId={draftProductId} media={media} setMedia={setMedia} mediaType="gallery" /> : null}
         {step === 3 ? <InteractiveMediaStep productId={draftProductId} draft={draft} updateDraft={updateDraft} media={media} setMedia={setMedia} /> : null}
-        {step === 4 ? <><Preview productId={draftProductId} draft={draft} trader={trader} category={category} media={media} /><div className="mt-4 flex gap-2"><Button type="button" variant="outline" loading={loading} onClick={() => void saveDraft().then(() => toast.success("Draft saved.")).catch((e) => toast.error(e.message))}>Save draft</Button><Button type="submit" loading={loading}>Submit for review</Button></div></> : null}
+        {step === 4 ? <><Preview productId={draftProductId} draft={draft} trader={trader} category={category} media={media} />{publishError ? <div role="alert" className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"><p className="font-black">Complete 360 media or continue without 360.</p><p className="mt-1">{publishError}</p><div className="mt-3 flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => setStep(3)}>Go to 360 / 3D</Button><Button type="button" variant="outline" loading={loading} onClick={() => void continueWithout360()}>Continue without 360</Button></div></div> : null}<div className="mt-4 flex gap-2"><Button type="button" variant="outline" loading={loading} onClick={() => void saveDraft().then(() => toast.success("Draft saved.")).catch((e) => toast.error(e.message))}>Save draft</Button><Button type="submit" loading={loading}>Submit for review</Button></div></> : null}
       </Card>
       <div className="flex justify-between">
         <Button type="button" variant="outline" disabled={step === 0} onClick={() => setStep((value) => Math.max(0, value - 1))}>Back</Button>
@@ -183,7 +205,13 @@ function MediaUploader({ productId, media, setMedia, mediaType }: { productId: n
       const type = mediaType === "gallery" ? (file.type.startsWith("video/") ? "clip" : "image") : ({ spin: "spin_frame", model: "model_3d", poster: "poster" } as const)[mediaType];
       const body = new FormData();
       body.set("file", file); body.set("media_type", type); body.set("sort_order", String(visible.length + offset));
-      if (type === "spin_frame") body.set("frame_index", String(visible.length + offset));
+      if (type === "spin_frame") {
+        const existingIndices = visible
+          .map((item) => item.frame_index)
+          .filter((value): value is number => value !== null);
+        const nextIndex = existingIndices.length ? Math.max(...existingIndices) + 1 : 0;
+        body.set("frame_index", String(nextIndex + offset));
+      }
       const response = await fetch(`/api/storefront/catalog/products/${productId}/media/`, { method: "POST", body });
       if (response.ok) {
         const uploaded = await response.json() as ComposerMedia;
@@ -204,12 +232,13 @@ function MediaUploader({ productId, media, setMedia, mediaType }: { productId: n
 }
 
 function InteractiveMediaStep({ productId, draft, updateDraft, media, setMedia }: { productId: number | null; draft: { view_360_enabled: boolean; view_360_mode: "spin" | "model" }; updateDraft: (key: "view_360_enabled" | "view_360_mode", value: boolean | string) => void; media: ProductMedia[]; setMedia: React.Dispatch<React.SetStateAction<ProductMedia[]>> }) {
-  const frames = media.filter((item) => item.media_type === "spin_frame").length;
+  const frames = new Set(media.filter((item) => item.media_type === "spin_frame" && item.frame_index !== null).map((item) => item.frame_index)).size;
   return <div className="space-y-4"><h2 className="text-lg font-black">Does this product have an interactive 360 / 3D view?</h2><div className="flex gap-2"><Button type="button" variant={!draft.view_360_enabled ? "primary" : "outline"} onClick={() => updateDraft("view_360_enabled", false)}>No</Button><Button type="button" variant={draft.view_360_enabled ? "primary" : "outline"} onClick={() => updateDraft("view_360_enabled", true)}>Yes</Button></div>{draft.view_360_enabled ? <><div className="flex gap-4"><label><input type="radio" checked={draft.view_360_mode === "spin"} onChange={() => updateDraft("view_360_mode", "spin")} /> 360 image spin</label><label><input type="radio" checked={draft.view_360_mode === "model"} onChange={() => updateDraft("view_360_mode", "model")} /> 3D GLB model</label></div>{draft.view_360_mode === "spin" ? <><Card className="p-4 text-sm"><h3 className="font-black">How to create a good 360 product view</h3><ol className="mt-2 list-decimal space-y-1 pl-5"><li>Place the product in one fixed position.</li><li>Keep camera height and distance unchanged.</li><li>Keep lighting and background unchanged.</li><li>Rotate the product equally between images.</li><li>Upload images in rotation order.</li><li>Minimum 12; 24–36 is smoother.</li></ol><p className="mt-3 font-bold">{frames} / 12 frames · {frames >= 12 ? "✓ Ready for 360" : `Need ${12 - frames} more`}</p></Card><MediaUploader productId={productId} media={media} setMedia={setMedia} mediaType="spin" /></> : <><Card className="p-4 text-sm"><h3 className="font-black">Upload one .GLB model of the product</h3><p className="mt-1">Accepted format: GLB. Maximum size: 120MB. Customers can drag to rotate and zoom.</p></Card><MediaUploader productId={productId} media={media} setMedia={setMedia} mediaType="model" /><p className="text-sm font-bold">Optional poster image</p><MediaUploader productId={productId} media={media} setMedia={setMedia} mediaType="poster" /></>}</> : <p className="text-sm text-[var(--color-text-secondary)]">Continue without 360. Ordinary products do not require it.</p>}</div>;
 }
 
 function Preview({ productId, draft, trader, category, media }: { productId: number | null; draft: { name: string; price: string; currency: string; short_description: string; stock_quantity: string; delivery_fee: string; view_360_enabled: boolean; view_360_mode: "spin" | "model" }; trader: number | null; category: number | null; media: ProductMedia[] }) {
   const gallery = media.filter((item) => ["image", "clip"].includes(item.media_type));
-  const ready360 = !draft.view_360_enabled || (draft.view_360_mode === "spin" ? media.filter((item) => item.media_type === "spin_frame").length >= 12 : media.some((item) => item.media_type === "model_3d"));
+  const validFrames = new Set(media.filter((item) => item.media_type === "spin_frame" && item.frame_index !== null).map((item) => item.frame_index)).size;
+  const ready360 = !draft.view_360_enabled || (draft.view_360_mode === "spin" ? validFrames >= 12 : media.some((item) => item.media_type === "model_3d"));
   return <div className="grid gap-5 md:grid-cols-2"><div className="aspect-[4/5] rounded-xl bg-[var(--color-primary-soft)] p-6"><p className="text-sm font-bold">{gallery.length ? `${gallery.length} gallery slide${gallery.length === 1 ? "" : "s"}` : "No cover image yet"}</p></div><div><p className="text-xs font-bold text-[var(--color-text-secondary)]">DRAFT PREVIEW · #{productId}</p><h2 className="mt-2 text-2xl font-black">{draft.name || "Untitled product"}</h2><p className="mt-3 text-xl font-black">{draft.currency} {Number(draft.price || 0).toLocaleString()}</p><p className="mt-3 text-sm">{draft.short_description}</p><ul className="mt-5 space-y-2 text-sm"><li>{trader ? "✓" : "○"} Store selected</li><li>{category ? "✓" : "○"} Category selected</li><li>{draft.name && draft.price ? "✓" : "○"} Product details complete</li><li>{gallery.some((item) => item.media_type === "image") ? "✓" : "○"} Cover image uploaded</li><li>{gallery.length ? "✓" : "○"} Gallery available</li><li>{ready360 ? "✓" : "○"} 360 readiness</li></ul></div></div>;
 }

@@ -44,7 +44,7 @@ export function ProductPurchasePanel({ product, mode = "all" }: { product: Produ
         </div>
         <div className="mt-4 flex items-center gap-2 md:mt-5 md:gap-3">
           <CartAction productId={product.id} productName={product.name} minimumOrderQuantity={product.minimum_order_quantity} stockQuantity={product.stock_quantity} requestedQuantity={quantity} size="large" hasSelectableSpecifications={product.has_selectable_specifications} productDetail={product} />
-          <CartAction productId={product.id} productName={product.name} minimumOrderQuantity={product.minimum_order_quantity} stockQuantity={product.stock_quantity} requestedQuantity={quantity} size="large" hasSelectableSpecifications={product.has_selectable_specifications} productDetail={product} checkout text="Buy now" className="flex-1 !w-auto border-black bg-black text-white hover:bg-black/85" />
+          <CartAction productId={product.id} productName={product.name} minimumOrderQuantity={product.minimum_order_quantity} stockQuantity={product.stock_quantity} requestedQuantity={quantity} size="large" variant="primary" grow hasSelectableSpecifications={product.has_selectable_specifications} productDetail={product} checkout text="Buy now" />
         </div>
         <div className="mt-3 flex items-center gap-2 md:gap-3">
           <BookmarkButton productId={product.id} initialBookmarked={product.is_bookmarked} />

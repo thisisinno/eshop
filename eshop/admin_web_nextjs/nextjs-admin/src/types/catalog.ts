@@ -5,8 +5,21 @@ export type ProductMediaType = "image" | "clip" | "spin_frame" | "model_3d" | "p
 export interface ProductMedia { id: number; product: number; media_type: ProductMediaType; file: string; file_url: string | null; file_key?: string; storage_key?: string; file_name: string; file_extension: string; is_image: boolean; is_clip: boolean; title: string; alt_text: string; caption: string; is_primary: boolean; sort_order: number; frame_index: number | null; edit_metadata: Record<string, unknown>; mime_type: string; file_size: number | null; created_at: string; }
 export interface ProductSpecificationOption { id?: number; value: string; price_adjustment: string; is_active: boolean; display_order: number; }
 export interface ProductSpecificationGroup { id?: number; name: string; selection_mode: "single" | "multiple"; is_required: boolean; is_active: boolean; display_order: number; options: ProductSpecificationOption[]; }
+export interface ProductApprovalReadiness {
+  ready: boolean;
+  issues: string[];
+  interactive_view: {
+    enabled: boolean;
+    mode: "spin" | "model";
+    ready: boolean;
+    frame_count: number;
+    minimum_frame_count: number;
+    frames_remaining: number;
+    has_model: boolean;
+  };
+}
 export interface ProductListItem { id: number; product_id: string; trader: number; trader_name: string; branch: number | null; branch_name: string | null; category: number | null; category_name: string | null; name: string; slug: string; sku: string; price: string; compare_at_price: string | null; currency: string; delivery_fee: string; stock_quantity: number; position: number; status: ProductStatus; is_featured: boolean; has_selectable_specifications: boolean; has_discount: boolean; discount_amount: string; discount_percent: string; primary_media_url: string | null; media_count: number; created_at: string; updated_at: string; }
-export interface Product extends ProductListItem { short_description: string; description: string; cost_price: string | null; minimum_order_quantity: number; unit: string; specifications: Record<string, unknown>; specification_groups: ProductSpecificationGroup[]; view_360_enabled: boolean; view_360_mode: "spin" | "model"; is_discountable: boolean; views_count: number; sold_count: number; media: ProductMedia[]; related_products: ProductListItem[]; created_by: number | null; created_by_name: string | null; updated_by: number | null; updated_by_name: string | null; }
+export interface Product extends ProductListItem { short_description: string; description: string; cost_price: string | null; minimum_order_quantity: number; unit: string; specifications: Record<string, unknown>; specification_groups: ProductSpecificationGroup[]; view_360_enabled: boolean; view_360_mode: "spin" | "model"; approval_readiness: ProductApprovalReadiness; is_discountable: boolean; views_count: number; sold_count: number; media: ProductMedia[]; related_products: ProductListItem[]; created_by: number | null; created_by_name: string | null; updated_by: number | null; updated_by_name: string | null; }
 export interface ProductWritePayload { trader: number; branch?: number | null; category?: number | null; name: string; sku?: string; short_description?: string; description?: string; price: number | string; compare_at_price?: number | string | null; cost_price?: number | string | null; currency?: string; delivery_fee?: number | string; stock_quantity: number; minimum_order_quantity?: number; unit?: string; specifications?: Record<string, unknown>; has_selectable_specifications?: boolean; specification_groups?: ProductSpecificationGroup[]; view_360_enabled?: boolean; view_360_mode?: "spin" | "model"; status?: ProductStatus; is_featured?: boolean; is_discountable?: boolean; position?: number | null; related_products?: number[]; }
 
 export interface SiteBranding { site_name: string; logo: string | null; logo_url: string | null; logo_alt_text: string; created_at: string; updated_at: string; }

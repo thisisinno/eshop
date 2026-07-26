@@ -1,3 +1,5 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.db.models import Count, F, Q, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -11,6 +13,7 @@ from api.permissions import HasModulePermission
 from api.serializers.catalog import BrandStatusSerializer, BrandStatusViewSerializer, SiteBrandingSerializer
 from api.serializers import ProductCategorySerializer, ProductDetailSerializer, ProductListSerializer, ProductMediaSerializer, ProductWriteSerializer
 from api.views.logs import record_admin_activity
+from api.services.products import validate_product_activation
 
 
 class PermissionedCatalogAPIView(APIView):
@@ -175,13 +178,14 @@ class ProductActionAPIView(PermissionedCatalogAPIView):
             product.status = Product.Status.ARCHIVED
         product.updated_by = request.user
         if action == "approve":
-            from api.services.specifications import validate_product_specification_configuration
             try:
-                validate_product_specification_configuration(product)
-            except Exception as exc:
-                detail = getattr(exc, "message_dict", None) or {"specification_groups": str(exc)}
+                validate_product_activation(product)
+                product.save()
+            except DjangoValidationError as exc:
+                detail = exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
                 raise serializers.ValidationError(detail) from exc
-        product.save()
+        else:
+            product.save()
         record_admin_activity(request, "catalog", action, product, status.HTTP_200_OK)
         return Response(ProductDetailSerializer(product_queryset().get(pk=product.pk), context={"request": request}).data)
 
@@ -212,8 +216,16 @@ class ProductMediaDetailAPIView(PermissionedCatalogAPIView):
 
     def delete(self, request, pk, media_id):
         media = self.get_object(pk, media_id)
-        record_admin_activity(request, "catalog", "media_delete", media, status.HTTP_204_NO_CONTENT)
-        media.delete()
+        product = media.product
+        with transaction.atomic():
+            media.delete()
+            if product.status == Product.Status.ACTIVE:
+                try:
+                    validate_product_activation(product)
+                except DjangoValidationError as exc:
+                    detail = exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
+                    raise serializers.ValidationError(detail) from exc
+            record_admin_activity(request, "catalog", "media_delete", media, status.HTTP_204_NO_CONTENT)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def patch(self, request, pk, media_id):
@@ -222,9 +234,15 @@ class ProductMediaDetailAPIView(PermissionedCatalogAPIView):
         serializer.is_valid(raise_exception=True)
         filename = getattr(request.FILES.get("file"), "name", "media file")
         try:
-            media = serializer.save()
+            with transaction.atomic():
+                media = serializer.save()
+                if media.product.status == Product.Status.ACTIVE:
+                    validate_product_activation(media.product)
         except serializers.ValidationError:
             raise
+        except DjangoValidationError as exc:
+            detail = exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
+            raise serializers.ValidationError(detail) from exc
         except Exception as exc:
             return Response({"file": [f"{filename}: update failed. {exc}"]}, status=status.HTTP_400_BAD_REQUEST)
         record_admin_activity(request, "catalog", "media_update", media, status.HTTP_200_OK)

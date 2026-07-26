@@ -107,7 +107,7 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
                 <ShareProductButton product={visibleProduct} compact />
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <CartAction productId={visibleProduct.id} productName={visibleProduct.name} minimumOrderQuantity={visibleProduct.minimum_order_quantity} stockQuantity={visibleProduct.stock_quantity} hasSelectableSpecifications={visibleProduct.has_selectable_specifications} productDetail={visibleProduct} checkout text="Checkout" onSuccess={onClose} className="h-10 !w-full border-black bg-black text-white hover:bg-black/85" />
+                <CartAction productId={visibleProduct.id} productName={visibleProduct.name} minimumOrderQuantity={visibleProduct.minimum_order_quantity} stockQuantity={visibleProduct.stock_quantity} hasSelectableSpecifications={visibleProduct.has_selectable_specifications} productDetail={visibleProduct} checkout text="Checkout" variant="primary" grow onSuccess={onClose} className="w-full" />
                 <ButtonLink className="h-10 px-3 text-sm" href={`/products/${visibleProduct.id}`} variant="outline" onClick={onClose}>Full details</ButtonLink>
               </div>
             </>

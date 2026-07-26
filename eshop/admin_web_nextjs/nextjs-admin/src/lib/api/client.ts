@@ -24,10 +24,15 @@ export function formatApiError(data: unknown, status?: number, path?: string): s
   if (!data || typeof data !== "object") return prefix || "The request failed.";
 
   const entries = Object.entries(data as Record<string, unknown>);
+  const fieldLabels: Record<string, string> = {
+    view_360_mode: "360 / 3D",
+    specification_groups: "Selectable specifications",
+    has_selectable_specifications: "Selectable specifications",
+  };
   const messages = entries.flatMap(([field, value]) => {
     const text = Array.isArray(value) ? value.join(" ") : typeof value === "string" ? value : "";
     if (!text) return [];
-    return field === "detail" || field === "non_field_errors" ? [text] : [`${field.replaceAll("_", " ")}: ${text}`];
+    return field === "detail" || field === "non_field_errors" ? [text] : [`${fieldLabels[field] || field.replaceAll("_", " ")}: ${text}`];
   });
   const message = messages.join(" ") || "The request failed.";
   return prefix ? `${prefix} ${message}` : message;

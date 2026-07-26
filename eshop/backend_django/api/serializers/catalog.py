@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from api.models import BrandStatus, BrandStatusView, Product, ProductCategory, ProductMedia, ProductSpecificationGroup, ProductSpecificationOption, SiteBranding, TraderBranch
-from api.services.specifications import validate_product_specification_configuration
+from api.services.products import get_product_approval_readiness, validate_product_activation
 
 
 def product_media_file_url(file, request=None):
@@ -184,11 +184,12 @@ class ProductDetailSerializer(ProductListSerializer):
     created_by_name = serializers.SerializerMethodField()
     updated_by_name = serializers.SerializerMethodField()
     specification_groups = SpecificationGroupSerializer(many=True, read_only=True)
+    approval_readiness = serializers.SerializerMethodField()
 
     class Meta(ProductListSerializer.Meta):
         fields = ProductListSerializer.Meta.fields + (
             "short_description", "description", "cost_price", "minimum_order_quantity", "unit", "is_discountable",
-            "specifications", "specification_groups", "view_360_enabled", "view_360_mode", "views_count", "sold_count", "media", "related_products", "created_by", "created_by_name", "updated_by", "updated_by_name",
+            "specifications", "specification_groups", "view_360_enabled", "view_360_mode", "approval_readiness", "views_count", "sold_count", "media", "related_products", "created_by", "created_by_name", "updated_by", "updated_by_name",
         )
 
     def get_created_by_name(self, obj):
@@ -196,6 +197,9 @@ class ProductDetailSerializer(ProductListSerializer):
 
     def get_updated_by_name(self, obj):
         return obj.updated_by.get_username() if obj.updated_by else None
+
+    def get_approval_readiness(self, obj):
+        return get_product_approval_readiness(obj)
 
 
 class ProductWriteSerializer(serializers.ModelSerializer):
@@ -289,26 +293,40 @@ class ProductWriteSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def create(self, validated_data):
         groups = validated_data.pop("specification_groups", [])
-        product = super().create(validated_data)
+        try:
+            product = super().create(validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
+            ) from exc
         self._save_groups(product, groups)
         if product.status == Product.Status.ACTIVE:
             try:
-                validate_product_specification_configuration(product)
+                validate_product_activation(product)
             except DjangoValidationError as exc:
-                raise serializers.ValidationError(exc.message_dict) from exc
+                raise serializers.ValidationError(
+                    exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
+                ) from exc
         return product
 
     @transaction.atomic
     def update(self, instance, validated_data):
         groups = validated_data.pop("specification_groups", None)
-        product = super().update(instance, validated_data)
+        try:
+            product = super().update(instance, validated_data)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(
+                exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
+            ) from exc
         if groups is not None:
             self._save_groups(product, groups)
         if product.status == Product.Status.ACTIVE:
             try:
-                validate_product_specification_configuration(product)
+                validate_product_activation(product)
             except DjangoValidationError as exc:
-                raise serializers.ValidationError(exc.message_dict) from exc
+                raise serializers.ValidationError(
+                    exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
+                ) from exc
         return product
 
 

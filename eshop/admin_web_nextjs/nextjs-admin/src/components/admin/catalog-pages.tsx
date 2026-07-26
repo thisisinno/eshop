@@ -134,7 +134,12 @@ export function ProductsPage() {
       toast.success(`Product ${name}d.`);
       void load();
     } catch (error) {
-      toast.error(errorMessage(error));
+      toast.error(
+        name === "approve"
+          ? `Cannot approve product. ${errorMessage(error)}`
+          : errorMessage(error),
+        name === "approve" ? { duration: 9000 } : undefined,
+      );
     }
   };
   const remove = async (product: ProductListItem) => {
@@ -434,6 +439,7 @@ export function ProductFormPage({
   const [modelFile, setModelFile] = useState<File | null>(null);
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [existingMedia, setExistingMedia] = useState<ProductMedia[]>([]);
+  const [loadedProduct, setLoadedProduct] = useState<Product | null>(null);
   const [previewUrls, setPreviewUrls] = useState<
     { file: File; url: string; type: "image" | "clip" }[]
   >([]);
@@ -442,6 +448,7 @@ export function ProductFormPage({
   const [reorderBusy, setReorderBusy] = useState(false);
   const [uploadStatus, setUploadStatus] = useState("");
   const applyProduct = (product: Product) => {
+    setLoadedProduct(product);
     setForm({
       trader: String(product.trader),
       branch: product.branch ? String(product.branch) : "",
@@ -522,8 +529,9 @@ export function ProductFormPage({
     setSaving(true);
     setUploadStatus("Saving product…");
     try {
-      const data = new FormData();
-      Object.entries(form).forEach(([key, value]) => {
+      const makeProductData = (overrides: Partial<FormValues> = {}) => {
+        const data = new FormData();
+        Object.entries({ ...form, ...overrides }).forEach(([key, value]) => {
         if (key === "related_products")
           (value as number[]).forEach((item) => data.append(key, String(item)));
         else if (key === "specifications")
@@ -533,10 +541,24 @@ export function ProductFormPage({
         else if (typeof value === "boolean") data.set(key, String(value));
         else if (typeof value === "string" && value !== "")
           data.set(key, value);
-      });
-      const product = id
-        ? await apiPut<Product>(`/catalog/products/${id}/`, data)
-        : await apiPost<Product>("/catalog/products/", data);
+        });
+        return data;
+      };
+      const desiredStatus = form.status;
+      const stagingOverrides: Partial<FormValues> = id
+        ? {
+            status: loadedProduct?.status || "draft",
+            ...(loadedProduct?.status === "active"
+              ? {
+                  view_360_enabled: loadedProduct.view_360_enabled,
+                  view_360_mode: loadedProduct.view_360_mode,
+                }
+              : {}),
+          }
+        : { status: "draft" };
+      let product = id
+        ? await apiPut<Product>(`/catalog/products/${id}/`, makeProductData(stagingOverrides))
+        : await apiPost<Product>("/catalog/products/", makeProductData(stagingOverrides));
       const failedUploads: string[] = [];
       const existingCustomerMedia = existingMedia.filter((item) =>
         ["image", "clip", "poster"].includes(item.media_type),
@@ -557,8 +579,12 @@ export function ProductFormPage({
           failedUploads.push(`${file.name} — ${errorMessage(error)}`);
         }
       }
+      const existingSpinIndices = existingMedia
+        .filter((item) => item.media_type === "spin_frame" && item.frame_index !== null)
+        .map((item) => item.frame_index as number);
+      const nextSpinIndex = existingSpinIndices.length ? Math.max(...existingSpinIndices) + 1 : 0;
       const specializedUploads: Array<{ file: File; media_type: "spin_frame" | "model_3d" | "poster"; sort_order: number; frame_index?: number }> = [
-        ...spinFiles.map((file, index) => ({ file, media_type: "spin_frame" as const, sort_order: index, frame_index: index })),
+        ...spinFiles.map((file, index) => ({ file, media_type: "spin_frame" as const, sort_order: nextSpinIndex + index, frame_index: nextSpinIndex + index })),
         ...(modelFile ? [{ file: modelFile, media_type: "model_3d" as const, sort_order: 0 }] : []),
         ...(posterFile ? [{ file: posterFile, media_type: "poster" as const, sort_order: customerSlides.length }] : []),
       ];
@@ -571,13 +597,20 @@ export function ProductFormPage({
         try { await apiPost(`/catalog/products/${product.id}/media/`, body); }
         catch (error) { failedUploads.push(`${upload.file.name} — ${errorMessage(error)}`); }
       }
+      if (failedUploads.length === 0) {
+        setUploadStatus(desiredStatus === "active" ? "Validating activation readiness…" : "Saving final product settings…");
+        product = await apiPut<Product>(
+          `/catalog/products/${product.id}/`,
+          makeProductData(),
+        );
+      }
       if (id)
         await apiGet<Product>(`/catalog/products/${product.id}/`).then(
           applyProduct,
         );
       if (failedUploads.length)
         toast.warning(
-          `Product saved, but media upload failed: ${failedUploads.join("; ")}`,
+          `Product saved without the requested final status because media upload failed: ${failedUploads.join("; ")}`,
         );
       else
         toast.success(
@@ -683,6 +716,11 @@ export function ProductFormPage({
   const specializedMedia = existingMedia.filter(
     (item) => !["image", "clip", "poster"].includes(item.media_type),
   );
+  const validSpinFrameCount = new Set(
+    specializedMedia
+      .filter((item) => item.media_type === "spin_frame" && item.frame_index !== null)
+      .map((item) => item.frame_index),
+  ).size;
   return (
     <>
       <PageHeader
@@ -832,7 +870,7 @@ export function ProductFormPage({
                     <p className="font-medium">360° image spin</p>
                     <p className="mt-1">Photograph the product from the same distance and height while rotating it around its center. Keep lighting and background consistent.</p>
                     <p className="mt-2 font-medium">Minimum: 12 frames · Recommended: 24–36 frames</p>
-                    <p className="mt-1">{specializedMedia.filter((item) => item.media_type === "spin_frame").length} / 12 minimum frames uploaded · {specializedMedia.filter((item) => item.media_type === "spin_frame").length >= 12 ? "Ready" : "Not ready"}</p>
+                    <p className="mt-1">{validSpinFrameCount} / 12 minimum frames uploaded · {validSpinFrameCount >= 12 ? "Ready" : "Not ready"}</p>
                     <input className={`${input} mt-3`} type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(e) => setSpinFiles(Array.from(e.target.files || []))} />
                     {spinFiles.length ? <p className="mt-2 font-medium">{spinFiles.length} ordered frames selected for upload</p> : null}
                   </div>
@@ -1442,6 +1480,65 @@ export function ProductDetailPage({ id }: { id: string }) {
               ? money(product.delivery_fee, product.currency)
               : "Free"}
           </p>
+        </section>
+        <section className={`${card} xl:col-span-3`}>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-dark dark:text-white">
+                Approval readiness
+              </h2>
+              <p className="mt-1 text-sm">
+                Backend-validated requirements for making this product active.
+              </p>
+            </div>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${product.approval_readiness.ready ? "bg-green/10 text-green" : "bg-orange/10 text-orange"}`}>
+              {product.approval_readiness.ready ? "Ready" : "Not ready"}
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-lg border border-stroke p-4 dark:border-dark-3">
+              <p className="font-medium">Product information</p>
+              <p className="mt-1 text-sm">Configured for the current catalog workflow.</p>
+            </div>
+            <div className="rounded-lg border border-stroke p-4 dark:border-dark-3">
+              <p className="font-medium">Selectable specifications</p>
+              <p className="mt-1 text-sm">
+                {product.approval_readiness.issues.some((issue) => /specification/i.test(issue))
+                  ? "Not ready"
+                  : "Ready"}
+              </p>
+            </div>
+          </div>
+          {product.approval_readiness.interactive_view.enabled ? (
+            <div className="mt-3 rounded-lg border border-stroke p-4 dark:border-dark-3">
+              <p className="font-medium">Interactive view</p>
+              {product.approval_readiness.interactive_view.mode === "spin" ? (
+                <>
+                  <p className="mt-1 text-sm">360° image spin</p>
+                  <p className="mt-2 font-semibold">
+                    {product.approval_readiness.interactive_view.frame_count} / {product.approval_readiness.interactive_view.minimum_frame_count} frames · {product.approval_readiness.interactive_view.ready ? "Ready" : "Not ready"}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="mt-1 text-sm">3D model</p>
+                  <p className="mt-2 font-semibold">
+                    {product.approval_readiness.interactive_view.has_model ? "GLB model uploaded · Ready" : "No GLB model uploaded · Not ready"}
+                  </p>
+                </>
+              )}
+              {!product.approval_readiness.interactive_view.ready ? (
+                <p className="mt-2 text-sm text-orange">
+                  {product.approval_readiness.issues.find((issue) => /360|3D|GLB|frame/i.test(issue))}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          {!product.approval_readiness.ready ? (
+            <Link href={`/catalog/products/${product.id}/edit`} className="mt-4 inline-block rounded-[5px] bg-primary px-5 py-3 font-medium text-white">
+              Edit product
+            </Link>
+          ) : null}
         </section>
         <section className={`${card} xl:col-span-2`}>
           <h2 className="mb-4 text-lg font-semibold text-dark dark:text-white">

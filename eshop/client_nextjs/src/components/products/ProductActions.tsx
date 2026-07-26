@@ -67,6 +67,8 @@ export function CartAction({
   stockQuantity,
   requestedQuantity,
   size = "compact",
+  variant = "outline",
+  grow = false,
   className = "",
   hasSelectableSpecifications = false,
   productDetail,
@@ -80,6 +82,8 @@ export function CartAction({
   stockQuantity: number;
   requestedQuantity?: number;
   size?: "compact" | "large";
+  variant?: "outline" | "primary";
+  grow?: boolean;
   className?: string;
   hasSelectableSpecifications?: boolean;
   productDetail?: ProductDetail;
@@ -167,8 +171,13 @@ export function CartAction({
     setDetail(await response.json() as ProductDetail);
   }
 
-  const dimensions = size === "large" ? "h-12 w-12" : "h-9 w-9";
+  const dimensions = size === "large"
+    ? (text ? "h-12 px-5" : "h-12 w-12")
+    : (text ? "h-9 px-4" : "h-9 w-9");
   const icon = size === "large" ? "h-5 w-5" : "h-4.5 w-4.5";
+  const visualStyles = variant === "primary"
+    ? "border-black bg-[var(--color-black)] text-white hover:bg-neutral-800 focus-visible:ring-black disabled:bg-neutral-700 disabled:text-white"
+    : "border-[var(--color-border-strong)] bg-white text-[var(--color-text)] hover:bg-[var(--color-primary-soft)] focus-visible:ring-[var(--color-text)] disabled:text-[var(--color-text-secondary)]";
   return (
     <>
     <button ref={triggerRef}
@@ -177,7 +186,7 @@ export function CartAction({
       onClick={add}
       aria-label={label}
       title={label}
-      className={`relative ${text ? "inline-flex px-5" : "grid"} ${dimensions} shrink-0 place-items-center items-center justify-center gap-2 rounded-full border border-[var(--color-border-strong)] bg-white text-[var(--color-text)] transition duration-180 hover:-translate-y-0.5 hover:bg-[var(--color-primary-soft)] active:scale-[0.94] disabled:pointer-events-none disabled:text-[var(--color-text-secondary)] disabled:opacity-50 motion-reduce:transition-none ${justAdded ? "cart-action-added" : ""} ${className}`}
+      className={`relative ${text ? "inline-flex" : "grid"} ${dimensions} ${grow ? "min-w-0 flex-1" : "shrink-0"} place-items-center items-center justify-center gap-2 rounded-full border transition duration-180 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-60 motion-reduce:transition-none ${visualStyles} ${justAdded ? "cart-action-added" : ""} ${className}`}
     >
       {loading ? <Loader2 aria-hidden className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <ShoppingBag aria-hidden className={`${icon} transition duration-180 ${justAdded ? "scale-90 opacity-70" : ""} motion-reduce:transition-none`} />}
       {text ? <span className="text-sm font-bold">{text}</span> : null}
