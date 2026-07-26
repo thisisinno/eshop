@@ -8,7 +8,7 @@ from api.views.users import (PermissionsAPIView, RoleDetailAPIView, RolesAPIView
     UserDetailAPIView, UsersAPIView)
 from api.views.catalog import (CategoriesAPIView, CategoryDetailAPIView, ProductActionAPIView,
     BrandStatusDetailAPIView, BrandStatusesAPIView, BrandStatusViewersAPIView, ProductDetailAPIView, ProductMediaAPIView, ProductMediaDetailAPIView,
-    ProductMediaPrimaryAPIView, ProductsAPIView, SiteBrandingAPIView)
+    ProductMediaPrimaryAPIView, ProductsAPIView, ProductFormOptionsAPIView, SiteBrandingAPIView)
 from api.views.logs import AdminActivityLogsAPIView, ProductInteractionAPIView, SystemRequestLogsAPIView, UserActivityLogsAPIView
 from api.views.orders import OrderActionAPIView, OrderDetailAPIView, OrdersAPIView
 from api.views.storefront import (
@@ -33,6 +33,7 @@ urlpatterns = [
     path("roles/", RolesAPIView.as_view()), path("roles/<int:pk>/", RoleDetailAPIView.as_view()), path("permissions/", PermissionsAPIView.as_view()),
     path("catalog/categories/", CategoriesAPIView.as_view()), path("catalog/categories/<int:pk>/", CategoryDetailAPIView.as_view()),
     path("catalog/products/", ProductsAPIView.as_view()), path("catalog/products/<int:pk>/", ProductDetailAPIView.as_view()),
+    path("catalog/product-form-options/", ProductFormOptionsAPIView.as_view()),
     path("catalog/products/<int:pk>/media/", ProductMediaAPIView.as_view()),
     path("catalog/products/<int:pk>/media/<int:media_id>/", ProductMediaDetailAPIView.as_view()),
     path("catalog/products/<int:pk>/media/<int:media_id>/primary/", ProductMediaPrimaryAPIView.as_view()),

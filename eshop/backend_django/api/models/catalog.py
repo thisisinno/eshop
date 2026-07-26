@@ -118,6 +118,7 @@ class Product(models.Model):
     minimum_order_quantity = models.PositiveIntegerField(default=1)
     unit = models.CharField(max_length=50, blank=True)
     specifications = models.JSONField(default=dict, blank=True)
+    has_selectable_specifications = models.BooleanField(default=False)
     view_360_enabled = models.BooleanField(default=False)
     view_360_mode = models.CharField(max_length=20, choices=Viewer360Mode.choices, default=Viewer360Mode.SPIN)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
@@ -213,6 +214,43 @@ class Product(models.Model):
 
     def __str__(self):
         return f"{self.product_id} - {self.name}"
+
+
+class ProductSpecificationGroup(models.Model):
+    class SelectionMode(models.TextChoices):
+        SINGLE = "single", "Single"
+        MULTIPLE = "multiple", "Multiple"
+
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="specification_groups")
+    name = models.CharField(max_length=150)
+    selection_mode = models.CharField(max_length=10, choices=SelectionMode.choices, default=SelectionMode.SINGLE)
+    is_required = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("display_order", "id")
+
+    def __str__(self):
+        return f"{self.product.name}: {self.name}"
+
+
+class ProductSpecificationOption(models.Model):
+    group = models.ForeignKey(ProductSpecificationGroup, on_delete=models.CASCADE, related_name="options")
+    value = models.CharField(max_length=150)
+    price_adjustment = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    is_active = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("display_order", "id")
+
+    def __str__(self):
+        return f"{self.group.name}: {self.value}"
 
 
 class ProductMedia(models.Model):

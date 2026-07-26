@@ -1,15 +1,16 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Bookmark, Check, Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { IconButton } from "@/components/ui/IconButton";
 import { useMyList } from "@/components/bookmarks/MyListProvider";
 import { useCart } from "@/components/cart/CartProvider";
 import { useNotifications } from "@/components/notifications/NotificationProvider";
-import type { Cart } from "@/types/storefront";
+import type { Cart, ProductDetail } from "@/types/storefront";
 import { parseApiError } from "@/lib/api/errors";
+import { ProductSpecificationDrawer } from "./ProductSpecificationDrawer";
 
 export function BookmarkButton({ productId, initialBookmarked, compact = false }: { productId: number; initialBookmarked: boolean; compact?: boolean }) {
   const router = useRouter();
@@ -67,6 +68,9 @@ export function CartAction({
   requestedQuantity,
   size = "compact",
   className = "",
+  hasSelectableSpecifications = false,
+  productDetail,
+  checkout = false,
 }: {
   productId: number;
   productName: string;
@@ -75,11 +79,19 @@ export function CartAction({
   requestedQuantity?: number;
   size?: "compact" | "large";
   className?: string;
+  hasSelectableSpecifications?: boolean;
+  productDetail?: ProductDetail;
+  checkout?: boolean;
 }) {
   const router = useRouter();
   const { hasProduct, setCartState } = useCart();
   const [loading, setLoading] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [detail, setDetail] = useState<ProductDetail | null>(productDetail ?? null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [drawerError, setDrawerError] = useState("");
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const inCart = hasProduct(productId);
   const minimum = Math.max(1, minimumOrderQuantity || 1);
   const quantity = Math.max(minimum, requestedQuantity ?? minimum);
@@ -90,9 +102,9 @@ export function CartAction({
       ? `${productName} is already in cart`
       : `Add ${productName} to cart`;
 
-  async function add() {
+  async function submit(optionIds: number[] = []) {
     if (unavailable || loading) return;
-    if (inCart) {
+    if (inCart && !hasSelectableSpecifications) {
       toast.info("Already in cart");
       return;
     }
@@ -100,7 +112,7 @@ export function CartAction({
     const response = await fetch("/api/storefront/cart/items/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ product: productId, quantity }),
+      body: JSON.stringify({ product: productId, quantity, specification_option_ids: optionIds }),
     });
     setLoading(false);
     if (response.status === 401) {
@@ -109,20 +121,41 @@ export function CartAction({
       return;
     }
     if (!response.ok) {
-      toast.error(await parseApiError(response, "Could not add product to cart."));
+      const message = await parseApiError(response, "Could not add product to cart.");
+      setDrawerError(message);
+      toast.error(message);
       return;
     }
     const cart = await response.json() as Cart;
     setCartState(cart);
     toast.success(`${productName} added to cart`);
+    setDrawerOpen(false);
     setJustAdded(true);
     window.setTimeout(() => setJustAdded(false), 520);
+    if (checkout) router.push("/checkout");
+  }
+
+  async function add() {
+    if (!hasSelectableSpecifications) return submit();
+    setDrawerError("");
+    setDrawerOpen(true);
+    if (detail) return;
+    setDetailLoading(true);
+    const response = await fetch(`/api/storefront/products/${productId}/`);
+    setDetailLoading(false);
+    if (!response.ok) {
+      const message = await parseApiError(response, "Could not load specifications.");
+      setDrawerError(message);
+      return;
+    }
+    setDetail(await response.json() as ProductDetail);
   }
 
   const dimensions = size === "large" ? "h-12 w-12" : "h-9 w-9";
   const icon = size === "large" ? "h-5 w-5" : "h-4.5 w-4.5";
   return (
-    <button
+    <>
+    <button ref={triggerRef}
       type="button"
       disabled={loading || unavailable}
       onClick={add}
@@ -137,6 +170,8 @@ export function CartAction({
         </span>
       ) : null}
     </button>
+    <ProductSpecificationDrawer open={drawerOpen} product={detail} loading={detailLoading} submitting={loading} error={drawerError} onClose={() => setDrawerOpen(false)} onSubmit={submit} returnFocusRef={triggerRef} />
+    </>
   );
 }
 

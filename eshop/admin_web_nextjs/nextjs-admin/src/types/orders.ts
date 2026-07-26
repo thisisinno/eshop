@@ -13,6 +13,7 @@ export interface OrderItem {
   product_id_snapshot: string; product_name_snapshot: string; product_sku_snapshot: string;
   trader: number | null; trader_name_snapshot: string; branch: number | null; branch_name_snapshot: string;
   quantity: number; unit_price: string; line_discount: string; line_total: string; note: string;
+  selected_specifications_snapshot: { group_id: number; group_name: string; option_id: number; value: string; price_adjustment: string }[];
   created_at: string; updated_at: string;
 }
 

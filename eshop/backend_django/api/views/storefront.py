@@ -19,6 +19,7 @@ from api.serializers.storefront import (
 from api.services.notifications import create_activity_notification, mark_all_read, mark_notification_read, notify_admin_of_new_order, sync_order_notification, visible_notifications_for
 from api.services.recommendations import build_home_shelves, public_products_queryset
 from api.services.categories import filter_products_by_category_subtree
+from api.services.specifications import resolve_product_specification_selection
 
 
 class StorefrontPagination(PageNumberPagination):
@@ -324,7 +325,9 @@ class ProductBookmarksAPIView(APIView):
 
 
 def get_cart(user):
-    return Cart.objects.prefetch_related("items__product__trader", "items__product__category", "items__product__media").get_or_create(user=user)[0]
+    return Cart.objects.prefetch_related(
+        "items__product__trader", "items__product__category", "items__product__media",
+    ).get_or_create(user=user)[0]
 
 
 class CartAPIView(APIView):
@@ -342,15 +345,31 @@ class CartItemsAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         product = get_object_or_404(public_products_queryset(), pk=serializer.validated_data["product"].pk)
         quantity = serializer.validated_data["quantity"]
+        try:
+            resolved = resolve_product_specification_selection(
+                product, serializer.validated_data.get("specification_option_ids", [])
+            )
+        except DjangoValidationError as exc:
+            raise ValidationError(exc.message_dict if hasattr(exc, "message_dict") else exc.messages) from exc
         validate_cart_quantity(product, quantity)
         try:
-            item, created = CartItem.objects.get_or_create(cart=get_cart(request.user), product=product, defaults={"quantity": quantity})
+            item, created = CartItem.objects.get_or_create(
+                cart=get_cart(request.user), product=product,
+                specification_signature=resolved.signature,
+                defaults={
+                    "quantity": quantity,
+                    "unit_price": resolved.unit_price,
+                    "selected_specifications": resolved.snapshot,
+                },
+            )
         except DjangoValidationError as exc:
             raise ValidationError(exc.message_dict if hasattr(exc, "message_dict") else exc.messages) from exc
         if not created:
             new_quantity = item.quantity + quantity
             validate_cart_quantity(product, new_quantity)
             item.quantity = new_quantity
+            item.unit_price = resolved.unit_price
+            item.selected_specifications = resolved.snapshot
             try:
                 item.save()
             except DjangoValidationError as exc:

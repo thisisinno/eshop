@@ -3,9 +3,12 @@ import json
 from urllib.parse import urljoin
 
 from django.conf import settings
+from django.db import transaction
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from api.models import BrandStatus, BrandStatusView, Product, ProductCategory, ProductMedia, SiteBranding, TraderBranch
+from api.models import BrandStatus, BrandStatusView, Product, ProductCategory, ProductMedia, ProductSpecificationGroup, ProductSpecificationOption, SiteBranding, TraderBranch
+from api.services.specifications import validate_product_specification_configuration
 
 
 def product_media_file_url(file, request=None):
@@ -147,7 +150,7 @@ class ProductListSerializer(serializers.ModelSerializer):
         fields = (
             "id", "product_id", "trader", "trader_name", "branch", "branch_name", "category", "category_name",
             "name", "slug", "sku", "price", "compare_at_price", "currency", "stock_quantity", "position", "status",
-            "delivery_fee", "is_featured", "has_discount", "discount_amount", "discount_percent", "primary_media_url", "media_count", "created_at", "updated_at",
+            "delivery_fee", "is_featured", "has_selectable_specifications", "has_discount", "discount_amount", "discount_percent", "primary_media_url", "media_count", "created_at", "updated_at",
         )
 
     def get_primary_media_url(self, obj):
@@ -158,16 +161,34 @@ class ProductListSerializer(serializers.ModelSerializer):
         return len(obj.media.all())
 
 
+class SpecificationOptionSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
+
+    class Meta:
+        model = ProductSpecificationOption
+        fields = ("id", "value", "price_adjustment", "is_active", "display_order")
+
+
+class SpecificationGroupSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
+    options = SpecificationOptionSerializer(many=True)
+
+    class Meta:
+        model = ProductSpecificationGroup
+        fields = ("id", "name", "selection_mode", "is_required", "is_active", "display_order", "options")
+
+
 class ProductDetailSerializer(ProductListSerializer):
     media = ProductMediaSerializer(many=True, read_only=True)
     related_products = ProductSummarySerializer(many=True, read_only=True)
     created_by_name = serializers.SerializerMethodField()
     updated_by_name = serializers.SerializerMethodField()
+    specification_groups = SpecificationGroupSerializer(many=True, read_only=True)
 
     class Meta(ProductListSerializer.Meta):
         fields = ProductListSerializer.Meta.fields + (
             "short_description", "description", "cost_price", "minimum_order_quantity", "unit", "is_discountable",
-            "specifications", "view_360_enabled", "view_360_mode", "views_count", "sold_count", "media", "related_products", "created_by", "created_by_name", "updated_by", "updated_by_name",
+            "specifications", "specification_groups", "view_360_enabled", "view_360_mode", "views_count", "sold_count", "media", "related_products", "created_by", "created_by_name", "updated_by", "updated_by_name",
         )
 
     def get_created_by_name(self, obj):
@@ -180,13 +201,14 @@ class ProductDetailSerializer(ProductListSerializer):
 class ProductWriteSerializer(serializers.ModelSerializer):
     related_products = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all(), many=True, required=False)
     sku = serializers.CharField(required=False, allow_blank=True, default="")
+    specification_groups = serializers.JSONField(required=False)
 
     class Meta:
         model = Product
         fields = (
             "id", "trader", "branch", "category", "name", "short_description", "description", "sku", "price",
             "compare_at_price", "cost_price", "currency", "delivery_fee", "stock_quantity", "minimum_order_quantity", "unit", "status",
-            "specifications", "view_360_enabled", "view_360_mode", "is_featured", "is_discountable", "position", "related_products", "product_id", "slug", "created_by", "updated_by", "created_at", "updated_at",
+            "specifications", "has_selectable_specifications", "specification_groups", "view_360_enabled", "view_360_mode", "is_featured", "is_discountable", "position", "related_products", "product_id", "slug", "created_by", "updated_by", "created_at", "updated_at",
         )
         read_only_fields = ("id", "product_id", "slug", "created_by", "updated_by", "created_at", "updated_at")
         extra_kwargs = {
@@ -210,6 +232,17 @@ class ProductWriteSerializer(serializers.ModelSerializer):
         compare_at_price = attrs.get("compare_at_price", getattr(self.instance, "compare_at_price", None))
         delivery_fee = attrs.get("delivery_fee", getattr(self.instance, "delivery_fee", None))
         specifications = attrs.get("specifications", getattr(self.instance, "specifications", None))
+        groups = attrs.get("specification_groups")
+        if isinstance(groups, str):
+            try:
+                groups = json.loads(groups or "[]")
+            except json.JSONDecodeError as exc:
+                raise serializers.ValidationError({"specification_groups": "Selectable specifications must be valid JSON."}) from exc
+            attrs["specification_groups"] = groups
+        if groups is not None:
+            nested = SpecificationGroupSerializer(data=groups, many=True)
+            nested.is_valid(raise_exception=True)
+            attrs["specification_groups"] = nested.validated_data
         if isinstance(specifications, str):
             try:
                 specifications = json.loads(specifications or "{}")
@@ -225,6 +258,58 @@ class ProductWriteSerializer(serializers.ModelSerializer):
         if delivery_fee is not None and delivery_fee < 0:
             raise serializers.ValidationError({"delivery_fee": "Delivery fee cannot be negative."})
         return attrs
+
+    def _save_groups(self, product, groups):
+        retained_group_ids = []
+        for group_data in groups:
+            options = group_data.pop("options", [])
+            group_id = group_data.pop("id", None)
+            group = product.specification_groups.filter(pk=group_id).first() if group_id else None
+            if group:
+                for key, value in group_data.items():
+                    setattr(group, key, value)
+                group.save()
+            else:
+                group = ProductSpecificationGroup.objects.create(product=product, **group_data)
+            retained_group_ids.append(group.id)
+            retained_option_ids = []
+            for option_data in options:
+                option_id = option_data.pop("id", None)
+                option = group.options.filter(pk=option_id).first() if option_id else None
+                if option:
+                    for key, value in option_data.items():
+                        setattr(option, key, value)
+                    option.save()
+                else:
+                    option = ProductSpecificationOption.objects.create(group=group, **option_data)
+                retained_option_ids.append(option.id)
+            group.options.exclude(pk__in=retained_option_ids).delete()
+        product.specification_groups.exclude(pk__in=retained_group_ids).delete()
+
+    @transaction.atomic
+    def create(self, validated_data):
+        groups = validated_data.pop("specification_groups", [])
+        product = super().create(validated_data)
+        self._save_groups(product, groups)
+        if product.status == Product.Status.ACTIVE:
+            try:
+                validate_product_specification_configuration(product)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message_dict) from exc
+        return product
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        groups = validated_data.pop("specification_groups", None)
+        product = super().update(instance, validated_data)
+        if groups is not None:
+            self._save_groups(product, groups)
+        if product.status == Product.Status.ACTIVE:
+            try:
+                validate_product_specification_configuration(product)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message_dict) from exc
+        return product
 
 
 class BrandStatusSerializer(serializers.ModelSerializer):

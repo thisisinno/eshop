@@ -137,7 +137,7 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
             <>
               <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2">
                 <BookmarkButton productId={visibleProduct.id} initialBookmarked={visibleProduct.is_bookmarked} />
-                <CartAction productId={visibleProduct.id} productName={visibleProduct.name} minimumOrderQuantity={visibleProduct.minimum_order_quantity} stockQuantity={visibleProduct.stock_quantity} />
+                <CartAction productId={visibleProduct.id} productName={visibleProduct.name} minimumOrderQuantity={visibleProduct.minimum_order_quantity} stockQuantity={visibleProduct.stock_quantity} hasSelectableSpecifications={visibleProduct.has_selectable_specifications} productDetail={visibleProduct} />
                 <ShareProductButton product={visibleProduct} compact />
               </div>
               <div className="mt-2 grid grid-cols-2 gap-2">

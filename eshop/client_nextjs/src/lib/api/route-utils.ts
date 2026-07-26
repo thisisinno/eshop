@@ -14,6 +14,7 @@ const ALLOWED_PREFIXES = [
   "/storefront/notifications/",
   "/storefront/stores/",
   "/catalog/products/",
+  "/catalog/product-form-options/",
 ] as const;
 
 export function assertAllowedDjangoPath(path: string) {

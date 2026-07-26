@@ -6,7 +6,7 @@ from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.models import BrandStatus, BrandStatusView, Product, ProductCategory, ProductMedia, SiteBranding
+from api.models import BrandStatus, BrandStatusView, Product, ProductCategory, ProductMedia, SiteBranding, TraderProfile
 from api.permissions import HasModulePermission
 from api.serializers.catalog import BrandStatusSerializer, BrandStatusViewSerializer, SiteBrandingSerializer
 from api.serializers import ProductCategorySerializer, ProductDetailSerializer, ProductListSerializer, ProductMediaSerializer, ProductWriteSerializer
@@ -40,6 +40,33 @@ class CategoriesAPIView(PermissionedCatalogAPIView):
         return Response(ProductCategorySerializer(category, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
+class ProductFormOptionsAPIView(PermissionedCatalogAPIView):
+    permission_map = {"GET": "api.add_product"}
+
+    def get(self, request):
+        search = request.query_params.get("search", "").strip()
+        traders = TraderProfile.objects.filter(status=TraderProfile.Status.APPROVED)
+        if search:
+            traders = traders.filter(
+                Q(business_name__icontains=search) | Q(trader_code__icontains=search)
+                | Q(owner_full_name__icontains=search) | Q(phone__icontains=search)
+                | Q(email__icontains=search)
+            )
+        traders = traders.order_by("business_name")[:20]
+        categories = ProductCategory.objects.filter(is_active=True).order_by("display_order", "name")
+        return Response({
+            "traders": [{
+                "id": trader.id, "business_name": trader.business_name,
+                "trader_code": trader.trader_code, "region": trader.region,
+                "district": trader.district,
+            } for trader in traders],
+            "categories": [{
+                "id": category.id, "name": category.name, "slug": category.slug,
+                "parent_id": category.parent_id, "is_active": category.is_active,
+            } for category in categories],
+        })
+
+
 class CategoryDetailAPIView(PermissionedCatalogAPIView):
     permission_map = {"GET": "api.view_productcategory", "PUT": "api.change_productcategory", "PATCH": "api.change_productcategory", "DELETE": "api.delete_productcategory"}
 
@@ -70,7 +97,7 @@ class CategoryDetailAPIView(PermissionedCatalogAPIView):
 
 
 def product_queryset():
-    return Product.objects.select_related("trader", "branch", "category", "created_by", "updated_by").prefetch_related("media", "related_products__media")
+    return Product.objects.select_related("trader", "branch", "category", "created_by", "updated_by").prefetch_related("media", "related_products__media", "specification_groups__options")
 
 
 class ProductsAPIView(PermissionedCatalogAPIView):
@@ -147,6 +174,13 @@ class ProductActionAPIView(PermissionedCatalogAPIView):
         else:
             product.status = Product.Status.ARCHIVED
         product.updated_by = request.user
+        if action == "approve":
+            from api.services.specifications import validate_product_specification_configuration
+            try:
+                validate_product_specification_configuration(product)
+            except Exception as exc:
+                detail = getattr(exc, "message_dict", None) or {"specification_groups": str(exc)}
+                raise serializers.ValidationError(detail) from exc
         product.save()
         record_admin_activity(request, "catalog", action, product, status.HTTP_200_OK)
         return Response(ProductDetailSerializer(product_queryset().get(pk=product.pk), context={"request": request}).data)

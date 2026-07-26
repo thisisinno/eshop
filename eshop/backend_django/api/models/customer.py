@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from decimal import Decimal
 
 from .catalog import Product
 from .registration import TraderProfile
@@ -47,12 +48,15 @@ class CartItem(models.Model):
     cart = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name="items")
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="cart_items")
     quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    selected_specifications = models.JSONField(default=list, blank=True)
+    specification_signature = models.CharField(max_length=64, default="none")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ("created_at", "id")
-        constraints = [models.UniqueConstraint(fields=("cart", "product"), name="unique_cart_product")]
+        constraints = [models.UniqueConstraint(fields=("cart", "product", "specification_signature"), name="unique_cart_product_specification")]
 
     def clean(self):
         if self.quantity < 1:
@@ -64,6 +68,8 @@ class CartItem(models.Model):
             raise ValidationError({"quantity": "Requested quantity exceeds available stock."})
 
     def save(self, *args, **kwargs):
+        if self._state.adding and self.product_id and self.unit_price == Decimal("0.00") and not self.selected_specifications:
+            self.unit_price = self.product.price
         self.clean()
         super().save(*args, **kwargs)
 

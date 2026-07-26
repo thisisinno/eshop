@@ -3,9 +3,11 @@ from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 
-from api.models import BrandStatus, Cart, CartItem, Order, OrderItem, Product, ProductBookmark, ProductCategory, ProductMedia, SiteBranding, StoreFollow, TraderProfile, UserActivityLog, UserNotification
+from api.models import BrandStatus, Cart, CartItem, Order, OrderItem, Product, ProductBookmark, ProductCategory, ProductMedia, ProductSpecificationGroup, ProductSpecificationOption, SiteBranding, StoreFollow, TraderProfile, UserActivityLog, UserNotification
 from api.serializers.catalog import product_media_file_url
 from api.services.orders import next_order_number
+from api.services.specifications import resolve_product_specification_selection
+from api.services.categories import store_category_hierarchy
 from api.utils.request_meta import request_meta_snapshot
 
 
@@ -100,7 +102,7 @@ class PublicStoreDetailSerializer(PublicStoreSummarySerializer):
         fields = PublicStoreSummarySerializer.Meta.fields + ("phone", "email", "address_description", "categories")
 
     def get_categories(self, obj):
-        categories = ProductCategory.objects.filter(products__trader=obj, products__status=Product.Status.ACTIVE, products__trader__status=TraderProfile.Status.APPROVED, is_active=True).distinct()
+        categories = store_category_hierarchy(obj)
         return PublicCategorySerializer(categories, many=True, context=self.context).data
 
 
@@ -118,7 +120,7 @@ class PublicProductCardSerializer(serializers.ModelSerializer):
         fields = (
             "id", "product_id", "name", "slug", "short_description", "price", "compare_at_price", "currency",
             "delivery_fee", "stock_quantity", "minimum_order_quantity", "unit", "has_discount", "discount_percent",
-            "views_count", "sold_count", "primary_media_url", "media_preview", "store", "category", "is_bookmarked", "created_at",
+            "views_count", "sold_count", "primary_media_url", "media_preview", "store", "category", "is_bookmarked", "has_selectable_specifications", "created_at",
         )
 
     def get_primary_media_url(self, obj):
@@ -133,13 +135,39 @@ class PublicProductCardSerializer(serializers.ModelSerializer):
         ).data
 
 
+class PublicSpecificationOptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductSpecificationOption
+        fields = ("id", "value", "price_adjustment", "display_order")
+
+
+class PublicSpecificationGroupSerializer(serializers.ModelSerializer):
+    options = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProductSpecificationGroup
+        fields = ("id", "name", "selection_mode", "is_required", "display_order", "options")
+
+    def get_options(self, obj):
+        return PublicSpecificationOptionSerializer(
+            [option for option in obj.options.all() if option.is_active], many=True
+        ).data
+
+
 class PublicProductDetailSerializer(PublicProductCardSerializer):
     related_products = PublicProductCardSerializer(many=True, read_only=True)
     media = serializers.SerializerMethodField()
     viewer_360 = serializers.SerializerMethodField()
+    specification_groups = serializers.SerializerMethodField()
 
     class Meta(PublicProductCardSerializer.Meta):
-        fields = PublicProductCardSerializer.Meta.fields + ("description", "specifications", "view_360_enabled", "view_360_mode", "media", "viewer_360", "related_products")
+        fields = PublicProductCardSerializer.Meta.fields + ("description", "specifications", "specification_groups", "view_360_enabled", "view_360_mode", "media", "viewer_360", "related_products")
+
+    def get_specification_groups(self, obj):
+        return PublicSpecificationGroupSerializer(
+            [group for group in obj.specification_groups.all() if group.is_active],
+            many=True,
+        ).data
 
     def get_media(self, obj):
         media = list(obj.media.all())
@@ -181,10 +209,10 @@ class CartItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CartItem
-        fields = ("id", "product", "quantity", "line_total", "created_at", "updated_at")
+        fields = ("id", "product", "quantity", "unit_price", "selected_specifications", "line_total", "created_at", "updated_at")
 
     def get_line_total(self, obj):
-        return obj.product.price * obj.quantity
+        return obj.unit_price * obj.quantity
 
 
 class CartSerializer(serializers.ModelSerializer):
@@ -215,6 +243,9 @@ class CartSerializer(serializers.ModelSerializer):
 class CartItemWriteSerializer(serializers.Serializer):
     product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.select_related("trader").all())
     quantity = serializers.IntegerField(min_value=1)
+    specification_option_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1), required=False, default=list
+    )
 
     def validate(self, attrs):
         product = attrs["product"]
@@ -235,7 +266,7 @@ class CartItemWriteSerializer(serializers.Serializer):
 
 
 def cart_subtotal(items):
-    return sum((item.product.price * item.quantity for item in items), Decimal("0.00"))
+    return sum((item.unit_price * item.quantity for item in items), Decimal("0.00"))
 
 
 def cart_delivery_fee(items):
@@ -318,10 +349,14 @@ class CustomerOrderCreateSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         request = self.context["request"]
-        cart = Cart.objects.prefetch_related("items__product__trader", "items__product__branch", "items__product__media").get(user=request.user)
+        cart = Cart.objects.prefetch_related(
+            "items__product__trader", "items__product__branch", "items__product__media",
+            "items__product__specification_groups__options",
+        ).get(user=request.user)
         items = list(cart.items.all())
         if not items:
             raise serializers.ValidationError({"cart": "Cart is empty."})
+        resolved_items = []
         for item in items:
             product = item.product
             if product.status != Product.Status.ACTIVE or product.trader.status != TraderProfile.Status.APPROVED:
@@ -330,6 +365,13 @@ class CustomerOrderCreateSerializer(serializers.Serializer):
                 raise serializers.ValidationError({"cart": f"{product.name} minimum order quantity is {product.minimum_order_quantity}."})
             if item.quantity > product.stock_quantity:
                 raise serializers.ValidationError({"cart": f"{product.name} does not have enough stock."})
+            option_ids = [entry.get("option_id") for entry in item.selected_specifications]
+            try:
+                resolved = resolve_product_specification_selection(product, option_ids)
+            except Exception as exc:
+                detail = getattr(exc, "message_dict", None) or getattr(exc, "messages", None) or str(exc)
+                raise serializers.ValidationError({"cart": f"{product.name}: {detail}"}) from exc
+            resolved_items.append((item, resolved))
         meta = request_meta_snapshot(request)
         with transaction.atomic():
             delivery_fee = cart_delivery_fee(items)
@@ -358,8 +400,12 @@ class CustomerOrderCreateSerializer(serializers.Serializer):
                 created_by=request.user,
                 updated_by=request.user,
             )
-            for item in items:
-                OrderItem.objects.create(order=order, product=item.product, quantity=item.quantity, unit_price=item.product.price)
+            for item, resolved in resolved_items:
+                OrderItem.objects.create(
+                    order=order, product=item.product, quantity=item.quantity,
+                    unit_price=resolved.unit_price,
+                    selected_specifications_snapshot=resolved.snapshot,
+                )
             order.recalculate_totals()
             cart.items.all().delete()
         return order

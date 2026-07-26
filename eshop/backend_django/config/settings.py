@@ -23,12 +23,16 @@ load_dotenv(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-q@rorb$-e5is_p5_#jn*ss7p3pp8lby4j6i1q)pdxdz^$d0rnb"
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-local-dev-only-change-me")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", "true").lower() in {"1", "true", "yes", "on"}
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "eshop.schoolsoft.online"]
+def comma_list(name, default=""):
+    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
+
+
+ALLOWED_HOSTS = comma_list("ALLOWED_HOSTS", "localhost,127.0.0.1,eshop.schoolsoft.online")
 
 
 # Application definition
@@ -55,6 +59,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "api.middleware.SystemRequestLogMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -81,12 +86,24 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+if os.getenv("POSTGRES_DB") or os.getenv("DATABASE_NAME"):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("POSTGRES_DB", os.getenv("DATABASE_NAME")),
+            "USER": os.getenv("POSTGRES_USER", os.getenv("DATABASE_USER", "")),
+            "PASSWORD": os.getenv("POSTGRES_PASSWORD", os.getenv("DATABASE_PASSWORD", "")),
+            "HOST": os.getenv("POSTGRES_HOST", os.getenv("DATABASE_HOST", "localhost")),
+            "PORT": os.getenv("POSTGRES_PORT", os.getenv("DATABASE_PORT", "5432")),
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 
 # Password validation
@@ -124,6 +141,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # Uploaded files use S3 in configured environments. Keeping the filesystem
@@ -132,15 +150,29 @@ AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "eshopmedia")
 AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "eu-west-1")
+AWS_S3_CUSTOM_DOMAIN = os.getenv(
+    "AWS_S3_CUSTOM_DOMAIN",
+    f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com",
+)
 AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = None
-AWS_QUERYSTRING_AUTH = False
+AWS_QUERYSTRING_AUTH = os.getenv("AWS_QUERYSTRING_AUTH", "false").lower() == "true"
+AWS_QUERYSTRING_EXPIRE = int(os.getenv("AWS_QUERYSTRING_EXPIRE", "3600"))
+AWS_S3_OBJECT_PARAMETERS = {
+    "CacheControl": "max-age=86400",
+}
+DJANGO_USE_S3 = os.getenv("DJANGO_USE_S3", "false").lower() == "true"
 
-if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
-    AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
+if DJANGO_USE_S3:
     MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
     STORAGES = {
-        "default": {"BACKEND": "storages.backends.s3.S3Storage"},
+        "default": {
+            "BACKEND": "storages.backends.s3.S3Storage",
+            "OPTIONS": {
+                "querystring_auth": AWS_QUERYSTRING_AUTH,
+                "querystring_expire": AWS_QUERYSTRING_EXPIRE,
+            },
+        },
         "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
     }
 else:
@@ -150,14 +182,15 @@ else:
         "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
     }
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-if frontend_origin := os.environ.get("FRONTEND_ORIGIN"):
-    CORS_ALLOWED_ORIGINS.append(frontend_origin.rstrip("/"))
+CORS_ALLOWED_ORIGINS = comma_list(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
+)
+for frontend_origin in (os.environ.get("FRONTEND_ORIGIN"), os.environ.get("ADMIN_FRONTEND_ORIGIN"), os.environ.get("CUSTOMER_FRONTEND_ORIGIN")):
+    if frontend_origin and frontend_origin.rstrip("/") not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(frontend_origin.rstrip("/"))
 
-CSRF_TRUSTED_ORIGINS = ["https://eshop.schoolsoft.online"]
+CSRF_TRUSTED_ORIGINS = comma_list("CSRF_TRUSTED_ORIGINS", "https://eshop.schoolsoft.online")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -168,3 +201,6 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
 }
+
+SYSTEM_REQUEST_LOGGING_ENABLED = True
+SYSTEM_REQUEST_LOG_EXCLUDED_PREFIXES = ("/static/", "/media/", "/favicon.ico")

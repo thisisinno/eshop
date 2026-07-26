@@ -5,14 +5,7 @@ import { Search, SlidersHorizontal, X } from "lucide-react";
 import { ProductCard } from "@/components/products/ProductCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import type { Paginated, ProductCard as ProductCardType } from "@/types/storefront";
-
-const SORT_OPTIONS = [
-  ["newest", "Newest"],
-  ["popularity", "Popular"],
-  ["best_selling", "Best selling"],
-  ["price_asc", "Price low to high"],
-  ["price_desc", "Price high to low"],
-] as const;
+import { SortDrawer, SORT_OPTIONS } from "./SortDrawer";
 
 type SearchFilters = {
   category?: string;
@@ -30,6 +23,9 @@ export function SearchClient({ initialQuery, initialData, initialFilters }: { in
   const [data, setData] = useState(initialData);
   const [loading, setLoading] = useState(false);
   const requestId = useRef(0);
+  const sortTriggerRef = useRef<HTMLButtonElement>(null);
+  const [sortOpen, setSortOpen] = useState(false);
+  const sortLabel = SORT_OPTIONS.find(([value]) => value === sort)?.[1] ?? "Newest";
 
   useEffect(() => {
     const id = ++requestId.current;
@@ -93,17 +89,15 @@ export function SearchClient({ initialQuery, initialData, initialFilters }: { in
           />
           {query ? <button type="button" aria-label="Clear search" onClick={clear} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)]"><X aria-hidden className="h-4 w-4" /></button> : null}
         </div>
-        <label className="relative">
-          <SlidersHorizontal aria-hidden className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-secondary)]" />
-          <select value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 w-full rounded-full border border-[var(--color-border-strong)] bg-white pl-9 pr-8 text-sm sm:w-44">
-            {SORT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-        </label>
+        <button ref={sortTriggerRef} type="button" aria-haspopup="dialog" aria-expanded={sortOpen} onClick={() => setSortOpen(true)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-[var(--color-border-strong)] bg-white px-4 text-sm font-bold sm:w-44">
+          <SlidersHorizontal aria-hidden className="h-4 w-4" />{sortLabel}
+        </button>
       </div>
       <div className="border-b border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)]">
         {loading ? "Searching..." : `${data.count} results`}
       </div>
       {data.results.length ? <div className="product-grid-two p-3 md:p-4">{data.results.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="p-4"><EmptyState title={query ? "No products found" : "Search eShop"}>{query ? "Try a different search or remove filters." : "Start typing to find products, stores, and categories."}</EmptyState></div>}
+      <SortDrawer open={sortOpen} value={sort} onChange={setSort} onClose={() => setSortOpen(false)} returnFocusRef={sortTriggerRef} />
     </>
   );
 }

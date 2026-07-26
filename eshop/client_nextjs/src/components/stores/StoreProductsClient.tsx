@@ -6,6 +6,8 @@ import { ProductCard } from "@/components/products/ProductCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ProductCardSkeleton } from "@/components/ui/Skeleton";
 import type { Category, Paginated, ProductCard as ProductCardType, StoreDetail } from "@/types/storefront";
+import { CategoryDrawer } from "@/components/categories/CategoryDrawer";
+import { hasCategoryChildren, rootCategories } from "@/lib/storefront/categories";
 
 type StoreProductsData = Paginated<ProductCardType> & { store: StoreDetail };
 
@@ -38,6 +40,9 @@ export function StoreProductsClient({
   const [data, setData] = useState(initialData);
   const [loading, setLoading] = useState(false);
   const requestId = useRef(0);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [drawerRoot, setDrawerRoot] = useState<Category | null>(null);
+  const roots = rootCategories(categories);
 
   useEffect(() => {
     const id = ++requestId.current;
@@ -70,13 +75,20 @@ export function StoreProductsClient({
     <>
       {categories.length ? (
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {categories.map((item) => {
-            const active = category === item.slug;
+          {roots.map((item) => {
+            const active = item.slug === "all" ? !category : category === item.slug;
             return (
               <button
                 key={item.id}
+                ref={item.id === drawerRoot?.id ? triggerRef : undefined}
                 type="button"
-                onClick={() => setCategory((current) => current === item.slug ? "" : item.slug)}
+                onClick={(event) => {
+                  if (item.slug === "all") { setCategory(""); return; }
+                  if (hasCategoryChildren(categories, item.id)) {
+                    triggerRef.current = event.currentTarget;
+                    setDrawerRoot(item);
+                  } else setCategory(item.slug);
+                }}
                 className={`inline-flex h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-sm font-semibold transition active:scale-[0.98] motion-reduce:transition-none ${active ? "border-[var(--color-black)] bg-[var(--color-black)] text-white" : "border-[var(--color-border-strong)] bg-white text-[var(--color-text)] hover:bg-[var(--color-primary-soft)]"}`}
               >
                 {item.name}
@@ -111,6 +123,7 @@ export function StoreProductsClient({
         <div className="p-4"><EmptyState title="No products found in this store" /></div>
       )}
       {loading && !data.results.length ? <div className="product-grid-two -mx-1 mt-1 p-1 md:-mx-2 md:p-2"><ProductCardSkeleton /><ProductCardSkeleton /></div> : null}
+      <CategoryDrawer categories={categories} root={drawerRoot} open={drawerRoot !== null} onClose={() => setDrawerRoot(null)} returnFocusRef={triggerRef} onSelect={(item) => setCategory(item.slug === "all" ? "" : item.slug)} />
     </>
   );
 }

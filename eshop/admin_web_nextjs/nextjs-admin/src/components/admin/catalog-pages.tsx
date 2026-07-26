@@ -13,6 +13,7 @@ import type {
   ProductCategory,
   ProductListItem,
   ProductMedia,
+  ProductSpecificationGroup,
   ProductStatus,
 } from "@/types/catalog";
 import { ConfirmAction } from "./ConfirmAction";
@@ -363,6 +364,8 @@ type FormValues = {
   minimum_order_quantity: string;
   unit: string;
   specifications: SpecRow[];
+  has_selectable_specifications: boolean;
+  specification_groups: ProductSpecificationGroup[];
   status: ProductStatus;
   is_featured: boolean;
   is_discountable: boolean;
@@ -386,6 +389,8 @@ const emptyForm: FormValues = {
   minimum_order_quantity: "1",
   unit: "",
   specifications: [{ key: "", value: "" }],
+  has_selectable_specifications: false,
+  specification_groups: [],
   status: "draft",
   is_featured: false,
   is_discountable: true,
@@ -447,6 +452,8 @@ export function ProductFormPage({
       minimum_order_quantity: String(product.minimum_order_quantity),
       unit: product.unit,
       specifications: specsToRows(product.specifications),
+      has_selectable_specifications: product.has_selectable_specifications,
+      specification_groups: product.specification_groups,
       status: product.status,
       is_featured: product.is_featured,
       is_discountable: product.is_discountable,
@@ -512,6 +519,8 @@ export function ProductFormPage({
           (value as number[]).forEach((item) => data.append(key, String(item)));
         else if (key === "specifications")
           data.set(key, JSON.stringify(rowsToSpecs(value as SpecRow[])));
+        else if (key === "specification_groups")
+          data.set(key, JSON.stringify(value));
         else if (typeof value === "boolean") data.set(key, String(value));
         else if (typeof value === "string" && value !== "")
           data.set(key, value);
@@ -777,6 +786,12 @@ export function ProductFormPage({
           <SpecificationEditor
             rows={form.specifications}
             setRows={(rows) => set("specifications", rows)}
+          />
+          <SelectableSpecificationsEditor
+            enabled={form.has_selectable_specifications}
+            groups={form.specification_groups}
+            onEnabled={(value) => set("has_selectable_specifications", value)}
+            onChange={(value) => set("specification_groups", value)}
           />
           <Field label="Status">
             <select
@@ -1093,7 +1108,7 @@ function SpecificationEditor({
   setRows: (rows: SpecRow[]) => void;
 }) {
   return (
-    <Field label="Specifications" className="md:col-span-2">
+    <Field label="Informational specifications" className="md:col-span-2">
       <div className="space-y-2">
         {rows.map((row, index) => (
           <div
@@ -1152,6 +1167,40 @@ function SpecificationEditor({
       </button>
     </Field>
   );
+}
+
+function SelectableSpecificationsEditor({
+  enabled, groups, onEnabled, onChange,
+}: {
+  enabled: boolean;
+  groups: ProductSpecificationGroup[];
+  onEnabled: (value: boolean) => void;
+  onChange: (groups: ProductSpecificationGroup[]) => void;
+}) {
+  const patchGroup = (index: number, patch: Partial<ProductSpecificationGroup>) =>
+    onChange(groups.map((group, groupIndex) => groupIndex === index ? { ...group, ...patch } : group));
+  return <Field label="Selectable specifications" className="md:col-span-2">
+    <label className="flex min-h-11 items-center gap-3 font-medium"><input type="checkbox" checked={enabled} onChange={(event) => onEnabled(event.target.checked)} className="h-5 w-5" />This product has selectable specifications</label>
+    {enabled ? <div className="mt-3 space-y-4">
+      {groups.map((group, groupIndex) => <section key={group.id ?? groupIndex} className="rounded-lg border border-stroke p-4 dark:border-dark-3">
+        <div className="grid gap-3 md:grid-cols-4">
+          <input className={input} aria-label="Group name" placeholder="Size, Color, Material" value={group.name} onChange={(event) => patchGroup(groupIndex, { name: event.target.value })} />
+          <select className={input} aria-label="Selection mode" value={group.selection_mode} onChange={(event) => patchGroup(groupIndex, { selection_mode: event.target.value as "single" | "multiple" })}><option value="single">Single selection</option><option value="multiple">Multiple selection</option></select>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={group.is_required} onChange={(event) => patchGroup(groupIndex, { is_required: event.target.checked })} />Required</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={group.is_active} onChange={(event) => patchGroup(groupIndex, { is_active: event.target.checked })} />Active</label>
+        </div>
+        <div className="mt-3 space-y-2">{group.options.map((option, optionIndex) => <div key={option.id ?? optionIndex} className="grid gap-2 md:grid-cols-[1fr_1fr_auto_auto]">
+          <input className={input} aria-label="Option value" placeholder="XL" value={option.value} onChange={(event) => patchGroup(groupIndex, { options: group.options.map((row, rowIndex) => rowIndex === optionIndex ? { ...row, value: event.target.value } : row) })} />
+          <input className={input} aria-label="Price adjustment" type="number" step="0.01" value={option.price_adjustment} onChange={(event) => patchGroup(groupIndex, { options: group.options.map((row, rowIndex) => rowIndex === optionIndex ? { ...row, price_adjustment: event.target.value } : row) })} />
+          <label className="flex items-center gap-2"><input type="checkbox" checked={option.is_active} onChange={(event) => patchGroup(groupIndex, { options: group.options.map((row, rowIndex) => rowIndex === optionIndex ? { ...row, is_active: event.target.checked } : row) })} />Active</label>
+          <button type="button" className="text-red" onClick={() => patchGroup(groupIndex, { options: group.options.filter((_, rowIndex) => rowIndex !== optionIndex) })}>Remove</button>
+        </div>)}</div>
+        <p className="mt-2 text-xs">Positive increases base price. Negative decreases it. Zero leaves price unchanged.</p>
+        <div className="mt-3 flex gap-4"><button type="button" className="font-medium text-primary" onClick={() => patchGroup(groupIndex, { options: [...group.options, { value: "", price_adjustment: "0", is_active: true, display_order: group.options.length }] })}>+ Add option</button><button type="button" className="text-red" onClick={() => onChange(groups.filter((_, index) => index !== groupIndex))}>Remove group</button></div>
+      </section>)}
+      <button type="button" className="rounded-[5px] border border-stroke px-4 py-2 font-medium dark:border-dark-3" onClick={() => onChange([...groups, { name: "", selection_mode: "single", is_required: true, is_active: true, display_order: groups.length, options: [{ value: "", price_adjustment: "0", is_active: true, display_order: 0 }] }])}>+ Add specification group</button>
+    </div> : null}
+  </Field>;
 }
 function PreviewFallback({
   text,

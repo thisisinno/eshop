@@ -275,7 +275,7 @@ function DesktopMoreNavigation({ user, canPost, pathname }: { user: User | null;
             })}
             {user ? (
               <form action="/api/auth/sign-out" method="post">
-                <button className="navigation-action flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-soft)]"><LogOut aria-hidden className="h-4.5 w-4.5" />Sign out</button>
+                <button className="navigation-action flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm font-semibold text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-soft)]"><LogOut aria-hidden className="h-4.5 w-4.5" />Logout</button>
               </form>
             ) : (
               <NavigationAction href="/auth/sign-in" label="Sign in" Icon={LogIn} showLabel labelClassName="text-xs leading-tight" iconClassName="h-4.5 w-4.5 shrink-0" className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 hover:bg-[var(--color-primary-soft)]" />
@@ -322,7 +322,7 @@ function MoreSheet({ open, onClose, user, canPost }: { open: boolean; onClose: (
           ))}
           {user ? (
             <form action="/api/auth/sign-out" method="post">
-              <button className="flex min-h-12 w-full items-center gap-4 py-2 text-left font-semibold text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)]"><LogOut aria-hidden className="h-5 w-5" />Sign out</button>
+              <button className="flex min-h-12 w-full items-center gap-4 py-2 text-left font-semibold text-[var(--color-text)] transition hover:bg-[var(--color-primary-soft)]"><LogOut aria-hidden className="h-5 w-5" />Logout</button>
             </form>
           ) : (
             <NavigationAction href="/auth/sign-in" label="Sign in" Icon={LogIn} showLabel labelClassName="text-sm leading-tight" onNavigate={onClose} className="flex min-h-12 w-full items-center gap-4 py-2 text-left hover:bg-[var(--color-primary-soft)]" />

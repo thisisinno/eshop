@@ -59,6 +59,7 @@ export type ProductCard = {
   store: StoreSummary;
   category: Category | null;
   is_bookmarked: boolean;
+  has_selectable_specifications: boolean;
   created_at: string;
 };
 
@@ -96,14 +97,19 @@ export type ProductDetail = ProductCard & {
   media: { gallery: ProductMedia[]; videos: ProductMedia[]; slides: ProductMedia[] };
   viewer_360: Viewer360;
   related_products: ProductCard[];
+  specification_groups: ProductSpecificationGroup[];
 };
+
+export type ProductSpecificationOption = { id: number; value: string; price_adjustment: string; display_order: number };
+export type ProductSpecificationGroup = { id: number; name: string; selection_mode: "single" | "multiple"; is_required: boolean; display_order: number; options: ProductSpecificationOption[] };
+export type SelectedSpecification = { group_id: number; group_name: string; option_id: number; value: string; price_adjustment: string };
 
 export type Shelf = { key: string; title: string; products: ProductCard[] };
 export type HomeResponse = { shelves: Shelf[] };
 export type Paginated<T> = { count: number; page: number; page_size: number; total_pages: number; next: string | null; previous: string | null; results: T[] };
 export type StoreDetail = StoreSummary & { phone: string; email: string; address_description: string; categories: Category[] };
 
-export type CartItem = { id: number; product: ProductCard; quantity: number; line_total: string };
+export type CartItem = { id: number; product: ProductCard; quantity: number; unit_price: string; selected_specifications: SelectedSpecification[]; line_total: string };
 export type Cart = { id: number; items: CartItem[]; subtotal: string; delivery_fee: string; grand_total: string; total_quantity: number };
 
 export type OrderPreviewItem = { product_name: string; product_media_url: string; quantity: number };
@@ -134,6 +140,7 @@ export type OrderDetailItem = {
   unit_price: string;
   line_discount: string;
   line_total: string;
+  selected_specifications_snapshot: SelectedSpecification[];
 };
 export type OrderStatusHistory = { id: number; from_status: string; to_status: string; note: string; changed_by_name: string | null; created_at: string };
 export type OrderDetail = OrderListItem & {

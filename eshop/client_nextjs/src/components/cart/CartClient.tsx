@@ -61,9 +61,10 @@ export function CartClient({ initialCart }: { initialCart: Cart }) {
                 <div className="flex min-w-0 flex-col">
                   <Link href={`/products/${item.product.id}`} className="line-clamp-2 min-h-10 text-sm font-black leading-5">{item.product.name}</Link>
                   <p className="mt-0.5 truncate text-[11px] font-bold uppercase text-[var(--color-text-secondary)]">{item.product.store.business_name}</p>
+                  {item.selected_specifications.length ? <ul className="mt-1 text-xs text-[var(--color-text-secondary)]">{item.selected_specifications.map((specification) => <li key={specification.option_id}>{specification.group_name}: {specification.value}</li>)}</ul> : null}
                   <div className="mt-2">
                     <p className="text-base font-black leading-tight">{money(item.line_total, item.product.currency)}</p>
-                    {item.quantity > 1 ? <p className="mt-0.5 text-xs font-semibold text-[var(--color-text-secondary)]">{item.quantity} x {money(item.product.price, item.product.currency)}</p> : null}
+                    {item.quantity > 1 ? <p className="mt-0.5 text-xs font-semibold text-[var(--color-text-secondary)]">{item.quantity} × {money(item.unit_price, item.product.currency)}</p> : null}
                   </div>
                   <div className="mt-auto flex items-center justify-between gap-2 pt-3">
                     <div className="flex items-center gap-2">

@@ -28,7 +28,7 @@ export default async function ProfilePage() {
         {rows.map(({ href, label, Icon }) => <Link key={label} href={href} className="flex min-h-14 items-center gap-3 px-4 font-semibold transition hover:bg-[var(--color-primary-soft)]"><Icon aria-hidden className="h-5 w-5 text-[var(--color-text)]" />{label}</Link>)}
       </div>
       <form action="/api/auth/sign-out" method="post" className="p-4">
-        <button className="inline-flex h-11 items-center gap-2 rounded-full bg-[var(--color-black)] px-4 text-sm font-semibold text-white transition active:scale-[0.98]"><LogOut aria-hidden className="h-4 w-4" />Sign out</button>
+        <button className="inline-flex h-11 items-center gap-2 rounded-full bg-[var(--color-black)] px-4 text-sm font-semibold text-white transition active:scale-[0.98]"><LogOut aria-hidden className="h-4 w-4" />Logout</button>
       </form>
     </section>
   );

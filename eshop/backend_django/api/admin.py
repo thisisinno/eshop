@@ -2,7 +2,7 @@ from django.contrib import admin
 
 from .models import (
     AdminActivityLog, Order, OrderItem, OrderNumberSequence, OrderStatusHistory, Product, ProductCategory,
-    ProductMedia, SystemRequestLog, TraderAgreement, TraderBranch, TraderDocument,
+    ProductMedia, ProductSpecificationGroup, ProductSpecificationOption, SystemRequestLog, TraderAgreement, TraderBranch, TraderDocument,
     TraderProfile, UserActivityLog,
 )
 
@@ -44,9 +44,29 @@ class ProductCategoryAdmin(admin.ModelAdmin):
     readonly_fields = ("slug", "created_at", "updated_at")
 
 
+class ProductSpecificationOptionInline(admin.TabularInline):
+    model = ProductSpecificationOption
+    extra = 1
+
+
+@admin.register(ProductSpecificationGroup)
+class ProductSpecificationGroupAdmin(admin.ModelAdmin):
+    list_display = ("name", "product", "selection_mode", "is_required", "is_active", "display_order")
+    list_filter = ("selection_mode", "is_required", "is_active")
+    search_fields = ("name", "product__name", "product__product_id")
+    inlines = [ProductSpecificationOptionInline]
+
+
+@admin.register(ProductSpecificationOption)
+class ProductSpecificationOptionAdmin(admin.ModelAdmin):
+    list_display = ("value", "group", "price_adjustment", "is_active", "display_order")
+    list_filter = ("is_active",)
+    search_fields = ("value", "group__name", "group__product__name")
+
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ("product_id", "name", "trader", "branch", "price", "compare_at_price", "status", "is_featured", "position", "created_at")
+    list_display = ("product_id", "name", "trader", "branch", "price", "has_selectable_specifications", "status", "is_featured", "position", "created_at")
     list_filter = ("status", "is_featured", "category", "trader")
     search_fields = ("product_id", "name", "sku", "trader__business_name")
     readonly_fields = ("product_id", "slug", "created_at", "updated_at")
@@ -62,7 +82,7 @@ class ProductMediaAdmin(admin.ModelAdmin):
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
-    readonly_fields = ("line_total", "created_at", "updated_at")
+    readonly_fields = ("line_total", "selected_specifications_snapshot", "created_at", "updated_at")
 
 
 @admin.register(Order)

@@ -14,6 +14,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
             "product_name_snapshot", "product_sku_snapshot", "trader", "trader_name_snapshot",
             "branch", "branch_name_snapshot", "quantity", "unit_price", "delivery_fee_snapshot", "line_discount",
             "line_total", "note", "created_at", "updated_at",
+            "selected_specifications_snapshot",
         )
         read_only_fields = ("order", "line_total", "created_at", "updated_at")
 

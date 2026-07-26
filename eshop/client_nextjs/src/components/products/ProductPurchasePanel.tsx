@@ -2,49 +2,18 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Minus, Plus, Truck } from "lucide-react";
-import { toast } from "sonner";
-import type { Cart, ProductDetail } from "@/types/storefront";
+import type { ProductDetail } from "@/types/storefront";
 import { CartAction, BookmarkButton } from "./ProductActions";
-import { Button } from "@/components/ui/Button";
-import { useCart } from "@/components/cart/CartProvider";
-import { parseApiError } from "@/lib/api/errors";
 import { ShareProductButton } from "./ShareProductButton";
 import { VerifiedBusinessBadge } from "@/components/store/VerifiedBusinessBadge";
 
 const money = (amount: string, currency: string) => `${currency} ${Number(amount).toLocaleString()}`;
 
 export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
-  const router = useRouter();
-  const { setCartState } = useCart();
   const [quantity, setQuantity] = useState(product.minimum_order_quantity || 1);
-  const [buying, setBuying] = useState(false);
   const minimum = Math.max(1, product.minimum_order_quantity || 1);
   const unavailable = product.stock_quantity <= 0 || product.stock_quantity < minimum;
-  async function buyNow() {
-    if (unavailable) return;
-    setBuying(true);
-    const response = await fetch("/api/storefront/cart/items/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ product: product.id, quantity }),
-    });
-    setBuying(false);
-    if (response.status === 401) {
-      toast.error("Sign in to checkout.");
-      router.push("/auth/sign-in");
-      return;
-    }
-    if (!response.ok) {
-      toast.error(await parseApiError(response, "Could not start checkout."));
-      return;
-    }
-    const cart = await response.json() as Cart;
-    setCartState(cart);
-    toast.success(`${product.name} added to cart`);
-    router.push("/checkout");
-  }
   return (
     <section className="border-t border-[var(--color-border)] bg-white p-3 md:border-t-0 md:p-5 lg:pt-5">
       <div className="mx-auto max-w-xl lg:max-w-none">
@@ -70,8 +39,8 @@ export function ProductPurchasePanel({ product }: { product: ProductDetail }) {
           </div>
         </div>
         <div className="mt-4 flex items-center gap-2 md:mt-5 md:gap-3">
-          <CartAction productId={product.id} productName={product.name} minimumOrderQuantity={product.minimum_order_quantity} stockQuantity={product.stock_quantity} requestedQuantity={quantity} size="large" />
-          <Button className="h-10 flex-1 px-3 text-sm md:h-11 md:text-base" variant="secondary" loading={buying} disabled={unavailable} onClick={buyNow}>Buy Now</Button>
+          <CartAction productId={product.id} productName={product.name} minimumOrderQuantity={product.minimum_order_quantity} stockQuantity={product.stock_quantity} requestedQuantity={quantity} size="large" hasSelectableSpecifications={product.has_selectable_specifications} productDetail={product} />
+          <CartAction productId={product.id} productName={product.name} minimumOrderQuantity={product.minimum_order_quantity} stockQuantity={product.stock_quantity} requestedQuantity={quantity} size="large" hasSelectableSpecifications={product.has_selectable_specifications} productDetail={product} checkout className="flex-1 !w-auto rounded-full after:content-['Buy_Now'] after:px-3 after:text-sm after:font-bold" />
         </div>
         <div className="mt-3 flex items-center gap-2 md:gap-3">
           <BookmarkButton productId={product.id} initialBookmarked={product.is_bookmarked} />
