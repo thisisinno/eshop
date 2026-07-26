@@ -59,21 +59,49 @@ def get_interactive_view_activation_issues(product, media=None):
     }
 
 
-def get_product_activation_issues(product):
-    issues = get_interactive_view_activation_issues(product)
-    try:
-        validate_product_specification_configuration(product)
-    except ValidationError as exc:
-        details = exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
-        for field, messages in details.items():
-            issues.setdefault(field, []).extend(
-                messages if isinstance(messages, list) else [messages]
+def _get_specification_activation_issues(product, specification_groups=None):
+    if not product.has_selectable_specifications:
+        return {}
+    if specification_groups is None:
+        try:
+            validate_product_specification_configuration(product)
+        except ValidationError as exc:
+            return exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
+        return {}
+
+    active_groups = [group for group in specification_groups if group.get("is_active", True)]
+    if not active_groups:
+        return {
+            "has_selectable_specifications": [
+                "Active products need at least one active specification group."
+            ]
+        }
+    issues = {}
+    for group in active_groups:
+        active_options = [
+            option for option in group.get("options", []) if option.get("is_active", True)
+        ]
+        if not active_options:
+            issues.setdefault("specification_groups", []).append(
+                f"{group.get('name') or 'Each active specification group'} needs at least one active option."
             )
     return issues
 
 
-def validate_product_activation(product):
-    issues = get_product_activation_issues(product)
+def get_product_activation_issues(product, specification_groups=None):
+    issues = get_interactive_view_activation_issues(product)
+    details = _get_specification_activation_issues(product, specification_groups)
+    for field, messages in details.items():
+        issues.setdefault(field, []).extend(
+            messages if isinstance(messages, list) else [messages]
+        )
+    return issues
+
+
+def validate_product_activation(product, specification_groups=None):
+    issues = get_product_activation_issues(
+        product, specification_groups=specification_groups
+    )
     if issues:
         raise ValidationError(issues)
 

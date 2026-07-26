@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from api.models import BrandStatus, BrandStatusView, Product, ProductCategory, ProductMedia, SiteBranding, TraderProfile
 from api.permissions import HasModulePermission
-from api.serializers.catalog import BrandStatusSerializer, BrandStatusViewSerializer, SiteBrandingSerializer
+from api.serializers.catalog import BrandStatusSerializer, BrandStatusViewSerializer, SiteBrandingSerializer, django_validation_to_drf
 from api.serializers import ProductCategorySerializer, ProductDetailSerializer, ProductListSerializer, ProductMediaSerializer, ProductWriteSerializer
 from api.views.logs import record_admin_activity
 from api.services.products import validate_product_activation
@@ -169,24 +169,24 @@ class ProductActionAPIView(PermissionedCatalogAPIView):
     def patch(self, request, pk, action):
         if action not in self.action_permissions:
             return Response({"detail": "Unknown action."}, status=status.HTTP_404_NOT_FOUND)
-        product = get_object_or_404(product_queryset(), pk=pk)
-        if action == "approve":
-            product.status = Product.Status.ACTIVE
-        elif action == "feature":
-            product.is_featured = request.data.get("is_featured", not product.is_featured)
-        else:
-            product.status = Product.Status.ARCHIVED
-        product.updated_by = request.user
-        if action == "approve":
-            try:
-                validate_product_activation(product)
+        try:
+            with transaction.atomic():
+                product = get_object_or_404(
+                    product_queryset().select_for_update(), pk=pk
+                )
+                if action == "approve":
+                    product.status = Product.Status.ACTIVE
+                elif action == "feature":
+                    product.is_featured = request.data.get("is_featured", not product.is_featured)
+                else:
+                    product.status = Product.Status.ARCHIVED
+                product.updated_by = request.user
+                if action == "approve":
+                    validate_product_activation(product)
                 product.save()
-            except DjangoValidationError as exc:
-                detail = exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
-                raise serializers.ValidationError(detail) from exc
-        else:
-            product.save()
-        record_admin_activity(request, "catalog", action, product, status.HTTP_200_OK)
+                record_admin_activity(request, "catalog", action, product, status.HTTP_200_OK)
+        except DjangoValidationError as exc:
+            raise django_validation_to_drf(exc) from exc
         return Response(ProductDetailSerializer(product_queryset().get(pk=product.pk), context={"request": request}).data)
 
 

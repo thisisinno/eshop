@@ -1,5 +1,6 @@
 import os
 import json
+from copy import copy
 from urllib.parse import urljoin
 
 from django.conf import settings
@@ -9,6 +10,11 @@ from rest_framework import serializers
 
 from api.models import BrandStatus, BrandStatusView, Product, ProductCategory, ProductMedia, ProductSpecificationGroup, ProductSpecificationOption, SiteBranding, TraderBranch
 from api.services.products import get_product_approval_readiness, validate_product_activation
+
+
+def django_validation_to_drf(exc):
+    detail = exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
+    return serializers.ValidationError(detail)
 
 
 def product_media_file_url(file, request=None):
@@ -290,44 +296,71 @@ class ProductWriteSerializer(serializers.ModelSerializer):
             group.options.exclude(pk__in=retained_option_ids).delete()
         product.specification_groups.exclude(pk__in=retained_group_ids).delete()
 
-    @transaction.atomic
+    def _activation_candidate(self, instance, validated_data):
+        candidate = copy(instance)
+        for field, value in validated_data.items():
+            if field != "related_products":
+                setattr(candidate, field, value)
+        return candidate
+
+    def _preflight_activation(self, instance, validated_data, groups):
+        resulting_status = validated_data.get("status", instance.status)
+        if resulting_status != Product.Status.ACTIVE:
+            return
+        candidate = self._activation_candidate(instance, validated_data)
+        validate_product_activation(candidate, specification_groups=groups)
+
     def create(self, validated_data):
         groups = validated_data.pop("specification_groups", [])
+        desired_status = validated_data.get("status", Product.Status.DRAFT)
+        candidate = Product(**{
+            key: value for key, value in validated_data.items()
+            if key not in {"related_products", "status"}
+        })
+        candidate.status = desired_status
         try:
-            product = super().create(validated_data)
+            if desired_status == Product.Status.ACTIVE:
+                validate_product_activation(candidate, specification_groups=groups)
+            with transaction.atomic():
+                if desired_status == Product.Status.ACTIVE:
+                    validated_data["status"] = Product.Status.DRAFT
+                product = super().create(validated_data)
+                self._save_groups(product, groups)
+                if desired_status == Product.Status.ACTIVE:
+                    validate_product_activation(product)
+                    product.status = Product.Status.ACTIVE
+                    product.save(update_fields=("status", "updated_at"))
+                return product
         except DjangoValidationError as exc:
-            raise serializers.ValidationError(
-                exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
-            ) from exc
-        self._save_groups(product, groups)
-        if product.status == Product.Status.ACTIVE:
-            try:
-                validate_product_activation(product)
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError(
-                    exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
-                ) from exc
-        return product
+            raise django_validation_to_drf(exc) from exc
 
-    @transaction.atomic
     def update(self, instance, validated_data):
         groups = validated_data.pop("specification_groups", None)
+        desired_status = validated_data.get("status", instance.status)
         try:
-            product = super().update(instance, validated_data)
+            self._preflight_activation(instance, validated_data, groups)
+            with transaction.atomic():
+                write_data = dict(validated_data)
+                if desired_status == Product.Status.ACTIVE:
+                    write_data["status"] = (
+                        instance.status
+                        if instance.status != Product.Status.ACTIVE
+                        else Product.Status.PENDING_REVIEW
+                    )
+                product = super().update(instance, write_data)
+                if groups is not None:
+                    self._save_groups(product, groups)
+                if desired_status == Product.Status.ACTIVE:
+                    validate_product_activation(product)
+                    product.status = Product.Status.ACTIVE
+                    product.save(update_fields=("status", "updated_at"))
+                return product
         except DjangoValidationError as exc:
-            raise serializers.ValidationError(
-                exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
-            ) from exc
-        if groups is not None:
-            self._save_groups(product, groups)
-        if product.status == Product.Status.ACTIVE:
             try:
-                validate_product_activation(product)
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError(
-                    exc.message_dict if hasattr(exc, "message_dict") else {"detail": exc.messages}
-                ) from exc
-        return product
+                instance.refresh_from_db()
+            except Product.DoesNotExist:
+                pass
+            raise django_validation_to_drf(exc) from exc
 
 
 class BrandStatusSerializer(serializers.ModelSerializer):

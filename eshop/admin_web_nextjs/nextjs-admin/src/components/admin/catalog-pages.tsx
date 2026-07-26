@@ -598,11 +598,18 @@ export function ProductFormPage({
         catch (error) { failedUploads.push(`${upload.file.name} — ${errorMessage(error)}`); }
       }
       if (failedUploads.length === 0) {
-        setUploadStatus(desiredStatus === "active" ? "Validating activation readiness…" : "Saving final product settings…");
-        product = await apiPut<Product>(
-          `/catalog/products/${product.id}/`,
-          makeProductData(),
-        );
+        if (desiredStatus === "active" && product.status !== "active") {
+          setUploadStatus("Validating activation readiness…");
+          product = await apiPatch<Product>(
+            `/catalog/products/${product.id}/approve/`,
+          );
+        } else {
+          setUploadStatus("Saving final product settings…");
+          product = await apiPut<Product>(
+            `/catalog/products/${product.id}/`,
+            makeProductData(),
+          );
+        }
       }
       if (id)
         await apiGet<Product>(`/catalog/products/${product.id}/`).then(
@@ -854,7 +861,7 @@ export function ProductFormPage({
             onEnabled={(value) => set("has_selectable_specifications", value)}
             onChange={(value) => set("specification_groups", value)}
           />
-          <Field label="Interactive product view" className="md:col-span-2">
+          <Field label="Interactive product view" className="md:col-span-2" id="interactive-media">
             <label className="flex items-center gap-3 font-medium">
               <input type="checkbox" checked={form.view_360_enabled} onChange={(e) => set("view_360_enabled", e.target.checked)} />
               Enable 360 / 3D view
@@ -1150,13 +1157,15 @@ function Field({
   label,
   children,
   className = "",
+  id,
 }: {
   label: string;
   children: React.ReactNode;
   className?: string;
+  id?: string;
 }) {
   return (
-    <label className={className}>
+    <label className={className} id={id}>
       {label}
       <div className="mt-2">{children}</div>
     </label>
@@ -1535,9 +1544,16 @@ export function ProductDetailPage({ id }: { id: string }) {
             </div>
           ) : null}
           {!product.approval_readiness.ready ? (
-            <Link href={`/catalog/products/${product.id}/edit`} className="mt-4 inline-block rounded-[5px] bg-primary px-5 py-3 font-medium text-white">
-              Edit product
-            </Link>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link href={`/catalog/products/${product.id}/edit`} className="inline-block rounded-[5px] bg-primary px-5 py-3 font-medium text-white">
+                Edit product
+              </Link>
+              {product.approval_readiness.interactive_view.enabled ? (
+                <Link href={`/catalog/products/${product.id}/edit#interactive-media`} className="inline-block rounded-[5px] border border-stroke px-5 py-3 font-medium dark:border-dark-3">
+                  Manage 360 media
+                </Link>
+              ) : null}
+            </div>
           ) : null}
         </section>
         <section className={`${card} xl:col-span-2`}>

@@ -1,14 +1,18 @@
 from decimal import Decimal
 
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
+from rest_framework import serializers
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from api.models import (
-    Product, ProductMedia, ProductSpecificationGroup, TraderProfile,
+    AdminActivityLog, Product, ProductMedia, ProductSpecificationGroup,
+    ProductSpecificationOption, TraderProfile,
 )
+from api.serializers.catalog import ProductWriteSerializer
 
 
 class ProductActivationTests(TestCase):
@@ -74,8 +78,17 @@ class ProductActivationTests(TestCase):
             self.assertEqual(response.status_code, 400)
             self.assertIn("view_360_mode", response.data)
             self.assertIn(f"only {count} of 12", str(response.data))
+            self.assertNotIn(
+                "Active products require at least 12 ordered 360 frames.",
+                str(response.data),
+            )
             product.refresh_from_db()
             self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
+            self.assertFalse(
+                AdminActivityLog.objects.filter(
+                    action="approve", object_id=str(product.pk)
+                ).exists()
+            )
 
     def test_spin_approval_accepts_twelve_or_more_distinct_ordered_frames(self):
         for count in (12, 13):
@@ -125,6 +138,22 @@ class ProductActivationTests(TestCase):
                 )
             self.assertEqual(response.status_code, 400)
             self.assertIn("view_360_mode", response.data)
+            product.refresh_from_db()
+            self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
+
+    def test_serializer_update_never_leaks_django_validation_error(self):
+        product = self.product(
+            view_360_enabled=True, view_360_mode=Product.Viewer360Mode.SPIN
+        )
+        serializer = ProductWriteSerializer(
+            product, data={"status": Product.Status.ACTIVE}, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        with self.assertRaises(serializers.ValidationError) as raised:
+            serializer.save()
+        self.assertNotIsInstance(raised.exception, DjangoValidationError)
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
 
     def test_selectable_specification_readiness_is_still_enforced(self):
         product = self.product(has_selectable_specifications=True)
@@ -132,6 +161,66 @@ class ProductActivationTests(TestCase):
         response = self.approve(product)
         self.assertEqual(response.status_code, 400)
         self.assertIn("specification_groups", response.data)
+
+    def test_interactive_and_specification_issues_are_returned_together(self):
+        product = self.product(
+            view_360_enabled=True,
+            view_360_mode=Product.Viewer360Mode.SPIN,
+            has_selectable_specifications=True,
+        )
+        response = self.approve(product)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("view_360_mode", response.data)
+        self.assertIn("has_selectable_specifications", response.data)
+
+    def test_incoming_specification_groups_are_saved_before_activation(self):
+        product = self.product(has_selectable_specifications=False)
+        response = self.client.patch(
+            f"/api/catalog/products/{product.pk}/",
+            {
+                "status": Product.Status.ACTIVE,
+                "has_selectable_specifications": True,
+                "specification_groups": [{
+                    "name": "Size",
+                    "selection_mode": ProductSpecificationGroup.SelectionMode.SINGLE,
+                    "is_required": True,
+                    "is_active": True,
+                    "display_order": 0,
+                    "options": [{
+                        "value": "Medium",
+                        "price_adjustment": "0.00",
+                        "is_active": True,
+                        "display_order": 0,
+                    }],
+                }],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.ACTIVE)
+        self.assertTrue(
+            ProductSpecificationOption.objects.filter(
+                group__product=product, value="Medium"
+            ).exists()
+        )
+
+    def test_multipart_false_values_do_not_enable_interactive_view(self):
+        for value in ("false", "0", None):
+            data = {
+                "trader": str(self.store.pk),
+                "name": f"Multipart {value}",
+                "price": "100.00",
+                "stock_quantity": "1",
+                "status": Product.Status.PENDING_REVIEW,
+            }
+            if value is not None:
+                data["view_360_enabled"] = value
+            response = self.client.post(
+                "/api/catalog/products/", data, format="multipart"
+            )
+            self.assertEqual(response.status_code, 201, response.data)
+            self.assertFalse(Product.objects.get(pk=response.data["id"]).view_360_enabled)
 
     def test_active_spin_media_deletion_preserves_readiness(self):
         product = self.product(

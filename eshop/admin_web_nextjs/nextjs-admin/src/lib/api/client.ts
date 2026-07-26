@@ -13,7 +13,7 @@ export class ApiError extends Error {
 }
 /** Turn DRF's field errors into text that can be shown directly in a toast. */
 export function formatApiError(data: unknown, status?: number, path?: string): string {
-  const prefix = status ? `Backend error ${status}${path ? ` on ${path}` : ""}.` : "";
+  const prefix = status && status >= 500 ? `Backend error ${status}${path ? ` on ${path}` : ""}.` : "";
   if (typeof data === "string" && data.trim()) {
     const text = data.trim();
     if (/^<!doctype html>/i.test(text) || /<html[\s>]/i.test(text)) {
@@ -32,7 +32,9 @@ export function formatApiError(data: unknown, status?: number, path?: string): s
   const messages = entries.flatMap(([field, value]) => {
     const text = Array.isArray(value) ? value.join(" ") : typeof value === "string" ? value : "";
     if (!text) return [];
-    return field === "detail" || field === "non_field_errors" ? [text] : [`${fieldLabels[field] || field.replaceAll("_", " ")}: ${text}`];
+    return field === "detail" || field === "non_field_errors" || field === "view_360_mode"
+      ? [text]
+      : [`${fieldLabels[field] || field.replaceAll("_", " ")}: ${text}`];
   });
   const message = messages.join(" ") || "The request failed.";
   return prefix ? `${prefix} ${message}` : message;
