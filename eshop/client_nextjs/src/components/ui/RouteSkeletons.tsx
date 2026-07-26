@@ -22,18 +22,21 @@ export function HomeSkeleton() {
 
 export function ProductDetailSkeleton() {
   return (
-    <article>
-      <div className="p-4 lg:hidden"><Skeleton className="h-4 w-32" /><Skeleton className="mt-2 h-6 w-4/5" /><Skeleton className="mt-3 h-7 w-36" /></div>
-      <div className="grid gap-0 lg:grid-cols-[minmax(0,48fr)_minmax(390px,52fr)] lg:items-start lg:gap-8 lg:p-6">
-        <section>
-          <div className="mb-2 grid grid-cols-2 border-b border-[var(--color-border)] p-3"><Skeleton className="mx-auto h-4 w-16" /><Skeleton className="mx-auto h-4 w-16" /></div>
-          <div className="lg:grid lg:grid-cols-[64px_1fr] lg:gap-3"><div className="order-2 mt-2 flex gap-2 lg:order-none lg:mt-0 lg:flex-col">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-14 w-14 shrink-0 rounded-md" />)}</div><Skeleton className="h-[min(56dvh,500px)] min-h-[300px] w-full rounded-none lg:h-[min(56vw,560px)]" /></div>
+    <article className="product-detail-root">
+      <div className="product-detail-layout border-b border-[var(--color-border)]">
+        <section className="product-detail-gallery product-gallery">
+          <div className="product-gallery-tabs grid grid-cols-2 border-b border-[var(--color-border)] py-3"><Skeleton className="mx-auto h-4 w-16" /><Skeleton className="mx-auto h-4 w-16" /></div>
+          <Skeleton className="product-gallery-stage w-full rounded-none" />
+          <div className="product-detail-thumbnails flex gap-2 overflow-hidden">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-14 w-14 shrink-0 rounded-md" />)}</div>
         </section>
-        <section className="border-t border-[var(--color-border)] bg-white p-4 md:border-t-0 md:p-5">
+        <div className="product-detail-info">
+        <section className="product-detail-identity product-detail-panel">
           <Skeleton className="h-4 w-36" /><Skeleton className="mt-3 h-6 w-11/12" /><Skeleton className="mt-2 h-6 w-2/3" /><Skeleton className="mt-4 h-8 w-40" /><Skeleton className="mt-4 h-4 w-24" /><Skeleton className="mt-2 h-4 w-36" /><Skeleton className="mt-4 h-9 w-28 rounded-full" /><div className="mt-5 flex gap-3"><Skeleton className="h-11 flex-1 rounded-full" /><Skeleton className="h-11 flex-1 rounded-full" /></div><div className="mt-3 flex gap-3"><Skeleton className="h-10 w-10 rounded-full" /><Skeleton className="h-10 w-24 rounded-full" /></div>
         </section>
+        <section className="product-detail-purchase product-detail-panel"><Skeleton className="h-4 w-full" /><Skeleton className="mt-2 h-4 w-5/6" /><Skeleton className="mt-4 h-9 w-28 rounded-full" /><div className="mt-5 flex gap-3"><Skeleton className="h-11 flex-1 rounded-full" /><Skeleton className="h-11 flex-1 rounded-full" /></div></section>
+        </div>
       </div>
-      <div className="divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">{["Description", "Specifications", "Delivery", "Store information"].map((label) => <div key={label} className="flex h-14 items-center justify-between px-4"><Skeleton className="h-4 w-36" /><Skeleton className="h-5 w-5 rounded-full" /></div>)}</div>
+      <div className="product-detail-sections divide-y divide-[var(--color-border)] border-y border-[var(--color-border)]">{["Description", "Specifications", "Delivery", "Store information"].map((label) => <div key={label} className="product-detail-section flex h-14 items-center justify-between px-4"><Skeleton className="h-4 w-36" /><Skeleton className="h-5 w-5 rounded-full" /></div>)}</div>
       <section className="border-b border-[var(--color-border)] px-3 py-5 md:px-4"><Skeleton className="mb-4 h-6 w-40" /><div className="shelf-scroll"><ProductCardSkeleton /><ProductCardSkeleton /><div className="shelf-desktop-only"><ProductCardSkeleton /></div></div></section>
     </article>
   );

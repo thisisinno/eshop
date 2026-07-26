@@ -36,26 +36,58 @@ export function ProductMediaCarousel({
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const dragged = useRef(false);
   const frame = useRef<number | null>(null);
+  const indexRef = useRef(0);
+  const programmaticTargetRef = useRef<number | null>(null);
+  const onIndexChangeRef = useRef(onIndexChange);
   const [index, setIndex] = useState(0);
   const [inView, setInView] = useState(true);
   const slides = media.filter((item) => resolveMediaUrl(item.url));
 
+  useEffect(() => {
+    onIndexChangeRef.current = onIndexChange;
+  }, [onIndexChange]);
+
+  const commitUserIndex = useCallback((next: number) => {
+    if (next === indexRef.current) return;
+    indexRef.current = next;
+    setIndex(next);
+    onIndexChangeRef.current?.(next);
+  }, []);
+
   const updateIndex = useCallback(() => {
     const viewport = viewportRef.current;
     if (!viewport?.clientWidth) return;
-    const next = Math.max(0, Math.min(slides.length - 1, Math.round(viewport.scrollLeft / viewport.clientWidth)));
-    setIndex((current) => {
-      if (current !== next) onIndexChange?.(next);
-      return next;
-    });
-  }, [onIndexChange, slides.length]);
+    const lastIndex = Math.max(0, slides.length - 1);
+    const next = Math.max(0, Math.min(lastIndex, Math.round(viewport.scrollLeft / viewport.clientWidth)));
+    if (programmaticTargetRef.current !== null) {
+      if (next === programmaticTargetRef.current) programmaticTargetRef.current = null;
+      return;
+    }
+    commitUserIndex(next);
+  }, [commitUserIndex, slides.length]);
 
   useEffect(() => {
-    if (activeIndex === undefined || activeIndex === index) return;
+    if (activeIndex === undefined) return;
+    const next = Math.max(0, Math.min(Math.max(0, slides.length - 1), activeIndex));
+    if (next === indexRef.current) return;
+    indexRef.current = next;
+    setIndex(next);
     const viewport = viewportRef.current;
     if (!viewport) return;
-    viewport.scrollTo({ left: activeIndex * viewport.clientWidth, behavior: "smooth" });
-  }, [activeIndex, index]);
+    programmaticTargetRef.current = next;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    viewport.scrollTo({ left: next * viewport.clientWidth, behavior: reduced ? "auto" : "smooth" });
+  }, [activeIndex, slides.length]);
+
+  useEffect(() => {
+    const next = Math.min(indexRef.current, Math.max(0, slides.length - 1));
+    if (next === indexRef.current) return;
+    indexRef.current = next;
+    setIndex(next);
+    onIndexChangeRef.current?.(next);
+    const viewport = viewportRef.current;
+    if (viewport) viewport.scrollTo({ left: next * viewport.clientWidth, behavior: "auto" });
+  }, [slides.length]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -91,6 +123,7 @@ export function ProductMediaCarousel({
   }
 
   function onPointerDown(event: React.PointerEvent) {
+    programmaticTargetRef.current = null;
     pointerStart.current = { x: event.clientX, y: event.clientY };
     dragged.current = false;
   }

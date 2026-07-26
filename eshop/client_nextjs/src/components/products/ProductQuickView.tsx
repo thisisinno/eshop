@@ -15,27 +15,40 @@ import { ProductMediaLightbox } from "./ProductMediaLightbox";
 
 const money = (amount: string, currency: string) => `${currency} ${Number(amount).toLocaleString()}`;
 
-export function ProductQuickView({ productId, open, onClose }: { productId: number | null; open: boolean; onClose: () => void }) {
+type QuickViewProps = { productId: number | null; open: boolean; onClose: () => void };
+
+export function ProductQuickView(props: QuickViewProps) {
+  if (!props.open || !props.productId) return null;
+  return <ProductQuickViewDialog key={props.productId} productId={props.productId} onClose={props.onClose} />;
+}
+
+function ProductQuickViewDialog({ productId, onClose }: { productId: number; onClose: () => void }) {
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [mediaIndex, setMediaIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open || !productId) return;
     let cancelled = false;
-    fetch(`/api/storefront/products/${productId}/`)
+    const controller = new AbortController();
+    fetch(`/api/storefront/products/${productId}/`, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("Could not load product.");
         return response.json() as Promise<ProductDetail>;
       })
       .then((data) => { if (!cancelled) setProduct(data); })
-      .catch(() => { if (!cancelled) toast.error("Could not load product details."); })
-    return () => { cancelled = true; };
-  }, [open, productId]);
+      .catch((error: unknown) => {
+        if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) {
+          toast.error("Could not load product details.");
+        }
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [productId]);
 
   useEffect(() => {
-    if (!open) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     panelRef.current?.focus();
@@ -47,9 +60,7 @@ export function ProductQuickView({ productId, open, onClose }: { productId: numb
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, onClose]);
-
-  if (!open || !productId) return null;
+  }, [onClose]);
 
   const visibleProduct = product?.id === productId ? product : null;
   const loading = !visibleProduct;

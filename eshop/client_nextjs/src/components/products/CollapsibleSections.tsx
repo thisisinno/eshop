@@ -16,13 +16,13 @@ export function CollapsibleSections({ product }: { product: ProductDetail }) {
   ] as const;
   const [open, setOpen] = useState("About this item");
   return (
-    <section className="my-8 overflow-hidden border-y border-[var(--color-border)] bg-white lg:mx-6 lg:grid lg:grid-cols-2 lg:border">
+    <section className="product-detail-sections overflow-hidden border-y border-[var(--color-border)] bg-white">
       {sections.map((section) => (
-        <div key={section.title} className="border-b border-[var(--color-border)] lg:min-h-40 lg:border-b lg:p-5 lg:odd:border-r">
-          <button className="flex w-full items-center justify-between px-4 py-4 text-left font-bold lg:pointer-events-none lg:p-0" onClick={() => setOpen((current) => current === section.title ? "" : section.title)}>
-            {section.title}<ChevronRight aria-hidden className={`h-5 w-5 transition lg:hidden ${open === section.title ? "rotate-90 text-[var(--color-text)]" : ""}`} />
+        <div key={section.title} className="product-detail-section border-b border-[var(--color-border)]">
+          <button className="product-detail-section-button flex w-full items-center justify-between px-4 py-4 text-left font-bold" onClick={() => setOpen((current) => current === section.title ? "" : section.title)}>
+            {section.title}<ChevronRight aria-hidden className={`product-detail-section-chevron h-5 w-5 transition ${open === section.title ? "rotate-90 text-[var(--color-text)]" : ""}`} />
           </button>
-          <div className={`${open === section.title ? "block" : "hidden"} px-4 pb-4 text-sm leading-6 text-[var(--color-text-secondary)] lg:mt-3 lg:block lg:p-0`}>
+          <div className={`product-detail-section-content ${open === section.title ? "block" : "hidden"} px-4 pb-4 text-sm leading-6 text-[var(--color-text-secondary)]`}>
               {section.kind === "specs" ? <SpecificationRows specs={section.content} /> : <p className="whitespace-pre-wrap">{section.content}</p>}
           </div>
         </div>

@@ -15,8 +15,8 @@ export function ProductPurchasePanel({ product, mode = "all" }: { product: Produ
   const minimum = Math.max(1, product.minimum_order_quantity || 1);
   const unavailable = product.stock_quantity <= 0 || product.stock_quantity < minimum;
   return (
-    <section className="bg-white px-4 py-4 lg:px-0 lg:py-2">
-      <div className="mx-auto max-w-xl lg:max-w-none">
+    <section className="product-detail-panel bg-white">
+      <div>
         {mode !== "purchase" ? <>
         <Link href={`/stores/${product.store.slug}`} className="inline-flex max-w-full items-center gap-1.5 text-xs font-bold text-[var(--color-text-secondary)] hover:underline md:text-sm">
           <span className="truncate">{product.store.business_name}</span>
