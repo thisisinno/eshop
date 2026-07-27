@@ -8,6 +8,12 @@ export interface ProductSpecificationGroup { id?: number; name: string; selectio
 export interface ProductApprovalReadiness {
   ready: boolean;
   issues: string[];
+  commerce: {
+    ready: boolean;
+    stock_quantity: number;
+    minimum_order_quantity: number;
+    reason: "out_of_stock" | "below_minimum" | null;
+  };
   interactive_view: {
     enabled: boolean;
     mode: "spin" | "model";

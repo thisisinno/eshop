@@ -392,7 +392,7 @@ const emptyForm: FormValues = {
   cost_price: "",
   currency: "TZS",
   delivery_fee: "0",
-  stock_quantity: "0",
+  stock_quantity: "",
   minimum_order_quantity: "1",
   unit: "",
   specifications: [{ key: "", value: "" }],
@@ -526,6 +526,20 @@ export function ProductFormPage({
     /\.(mp4|mov|webm)$/i.test(file.name) ? "clip" : "image";
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    const stock = Number(form.stock_quantity);
+    const minimum = Number(form.minimum_order_quantity);
+    if (form.stock_quantity.trim() === "" || !Number.isInteger(stock) || stock < 0) {
+      toast.error("Enter a valid whole-number stock quantity.");
+      return;
+    }
+    if (!Number.isInteger(minimum) || minimum < 1) {
+      toast.error("Minimum order quantity must be at least 1.");
+      return;
+    }
+    if (form.status === "active" && (stock <= 0 || stock < minimum)) {
+      toast.error(stock <= 0 ? "Add stock before activating this product." : "Stock quantity must be at least the minimum order quantity.");
+      return;
+    }
     setSaving(true);
     setUploadStatus("Saving product…");
     try {
@@ -837,6 +851,7 @@ export function ProductFormPage({
             value={form.stock_quantity}
             onChange={(value) => set("stock_quantity", value)}
             required
+            helper="Stock must be at least the minimum order quantity for customers to buy this product."
           />
           <TextField
             label="Minimum order quantity"
@@ -845,6 +860,11 @@ export function ProductFormPage({
             onChange={(value) => set("minimum_order_quantity", value)}
             required
           />
+          {form.stock_quantity !== "" && Number(form.stock_quantity) <= 0 ? (
+            <p className="text-sm font-medium text-orange md:col-span-2">Out of stock — Add to cart will be unavailable.</p>
+          ) : form.stock_quantity !== "" && Number(form.stock_quantity) < Number(form.minimum_order_quantity) ? (
+            <p className="text-sm font-medium text-orange md:col-span-2">Customers cannot currently order this product.</p>
+          ) : null}
           <TextField
             label="Unit"
             value={form.unit}
@@ -1516,6 +1536,18 @@ export function ProductDetailPage({ id }: { id: string }) {
                   ? "Not ready"
                   : "Ready"}
               </p>
+            </div>
+            <div className={`rounded-lg border p-4 dark:border-dark-3 ${product.approval_readiness.commerce.ready ? "border-stroke" : "border-orange"}`}>
+              <p className="font-medium">{product.approval_readiness.commerce.ready ? "✓" : "✕"} Stock</p>
+              <p className="mt-1 text-sm">Stock: {product.stock_quantity}</p>
+              <p className="text-sm">Minimum order: {product.minimum_order_quantity}</p>
+              {!product.approval_readiness.commerce.ready ? (
+                <p className="mt-2 text-sm text-orange">
+                  {product.stock_quantity <= 0
+                    ? "Customers will not be able to purchase this product."
+                    : "Stock is below the minimum order quantity."}
+                </p>
+              ) : null}
             </div>
           </div>
           {product.approval_readiness.interactive_view.enabled ? (

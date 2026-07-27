@@ -28,7 +28,6 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
 function Account({ user }: { user: DjangoUser | null }) { return <section className={card}><h1 className="text-xl font-semibold text-dark dark:text-white">Account Settings</h1><dl className="mt-5 grid gap-3 sm:grid-cols-2"><div><dt className="text-sm text-gray-6">Username</dt><dd>{user?.username || "—"}</dd></div><div><dt className="text-sm text-gray-6">Email</dt><dd>{user?.email || "—"}</dd></div></dl></section>; }
 
 function BrandingForm({ branding, onSaved }: { branding: SiteBranding; onSaved: () => Promise<void> }) {
-  const [siteName, setSiteName] = useState(branding.site_name);
   const [alt, setAlt] = useState(branding.logo_alt_text);
   const [logo, setLogo] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -37,7 +36,6 @@ function BrandingForm({ branding, onSaved }: { branding: SiteBranding; onSaved: 
     setSaving(true);
     try {
       const data = new FormData();
-      data.set("site_name", siteName);
       data.set("logo_alt_text", alt);
       if (logo) data.set("logo", logo);
       await apiPatch("/site/branding/", data);
@@ -46,7 +44,7 @@ function BrandingForm({ branding, onSaved }: { branding: SiteBranding; onSaved: 
     } catch (error) { toast.error(errorMessage(error)); } finally { setSaving(false); }
   }
   const logoUrl = resolveMediaUrl(branding.logo_url);
-  return <form onSubmit={submit} className={card}><h1 className="text-xl font-semibold text-dark dark:text-white">Branding</h1><div className="mt-5 grid gap-5 md:grid-cols-[160px_minmax(0,1fr)]"><div>{logoUrl ? <img src={logoUrl} alt={branding.logo_alt_text || branding.site_name} className="h-28 w-28 rounded-full border border-stroke object-contain p-2 dark:border-dark-3" /> : <div className="grid h-28 w-28 place-items-center rounded-full border border-stroke text-sm dark:border-dark-3">No logo</div>}</div><div className="space-y-4"><label className="block">Site name<input className={`${input} mt-2`} value={siteName} onChange={event => setSiteName(event.target.value)} /></label><label className="block">Logo alt text<input className={`${input} mt-2`} value={alt} onChange={event => setAlt(event.target.value)} /></label><label className="block">Upload / replace logo<input className={`${input} mt-2`} type="file" accept="image/png,image/jpeg,image/webp" onChange={event => setLogo(event.target.files?.[0] || null)} /></label><button disabled={saving} className="rounded-[5px] bg-primary px-6 py-3 font-medium text-white disabled:opacity-60">{saving ? "Saving…" : "Save branding"}</button></div></div></form>;
+  return <form onSubmit={submit} className={card}><h1 className="text-xl font-semibold text-dark dark:text-white">Branding</h1><div className="mt-5 grid gap-5 md:grid-cols-[160px_minmax(0,1fr)]"><div>{logoUrl ? <img src={logoUrl} alt={branding.logo_alt_text || branding.site_name} className="h-28 w-28 rounded-full border border-stroke object-contain p-2 dark:border-dark-3" /> : <div className="grid h-28 w-28 place-items-center rounded-full border border-stroke text-sm dark:border-dark-3">No logo</div>}</div><div className="space-y-4"><label className="block">Site name<input className={`${input} mt-2`} value="SmartWear" readOnly aria-readonly="true" /><span className="mt-1 block text-xs">SmartWear is the permanent customer-facing brand.</span></label><label className="block">Logo alt text<input className={`${input} mt-2`} value={alt} onChange={event => setAlt(event.target.value)} /></label><label className="block">Upload / replace logo<input className={`${input} mt-2`} type="file" accept="image/png,image/jpeg,image/webp" onChange={event => setLogo(event.target.files?.[0] || null)} /></label><button disabled={saving} className="rounded-[5px] bg-primary px-6 py-3 font-medium text-white disabled:opacity-60">{saving ? "Saving…" : "Save branding"}</button></div></div></form>;
 }
 
 function StatusManager({ statuses, onChanged }: { statuses: BrandStatus[]; onChanged: () => Promise<void> }) {
