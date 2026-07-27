@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   Bookmark,
@@ -28,6 +28,7 @@ import { useNotifications } from "@/components/notifications/NotificationProvide
 import { VerifiedBusinessBadge } from "@/components/store/VerifiedBusinessBadge";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { BrandLogo } from "./BrandLogo";
+import { useRouteFeedback } from "@/hooks/useRouteFeedback";
 
 const primaryNav = [
   { label: "Home", href: "/", Icon: Home },
@@ -77,55 +78,17 @@ function NavigationAction({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [requested, setRequested] = useState(false);
-  const [complete, setComplete] = useState(false);
   const [targetPath, targetQuery] = href.split("?");
   const active = isActive(pathname, targetPath)
     && (targetQuery
       ? Array.from(new URLSearchParams(targetQuery)).every(([key, value]) => searchParams.get(key) === value)
       : !(targetPath === "/search" && searchParams.get("tab") === "stores"));
 
-  useEffect(() => {
-    if (!requested || !active) return;
-    const confirmation = window.setTimeout(() => {
-      setRequested(false);
-      setComplete(true);
-    }, 0);
-    return () => window.clearTimeout(confirmation);
-  }, [active, requested]);
+  const feedbackState = useRouteFeedback(href, { active, onNavigate });
 
-  useEffect(() => {
-    if (!complete) return;
-    const reset = window.setTimeout(() => setComplete(false), 2000);
-    return () => window.clearTimeout(reset);
-  }, [complete]);
-
-  useEffect(() => {
-    if (active) return;
-    const reset = window.setTimeout(() => setComplete(false), 0);
-    return () => window.clearTimeout(reset);
-  }, [active]);
-
-  useEffect(() => {
-    if (!requested) return;
-    const failSafe = window.setTimeout(() => setRequested(false), 10000);
-    return () => window.clearTimeout(failSafe);
-  }, [requested]);
-
-  function navigate(event: React.MouseEvent<HTMLAnchorElement>) {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    if (active || requested) return;
-    event.preventDefault();
-    setRequested(true);
-    onNavigate?.();
-    startTransition(() => router.push(href));
-  }
-
-  const feedback = requested || isPending
+  const feedback = feedbackState.loading
     ? <Loader2 aria-hidden className={`${iconClassName} animate-spin motion-reduce:animate-none`} />
-    : complete
+    : feedbackState.complete
       ? <Check aria-hidden className={iconClassName} strokeWidth={2.8} />
       : <Icon aria-hidden className={iconClassName} strokeWidth={active ? 2.7 : 2.1} />;
   return (
@@ -134,8 +97,8 @@ function NavigationAction({
       aria-label={label}
       title={label}
       aria-current={active ? "page" : undefined}
-      aria-busy={requested || isPending || undefined}
-      onClick={navigate}
+      aria-busy={feedbackState.loading || undefined}
+      onClick={feedbackState.onClick}
       className={`navigation-action ${active ? "bg-[var(--color-primary-soft)] font-black text-[var(--color-text)]" : "font-semibold text-[var(--color-text-secondary)]"} ${className}`}
     >
       {count > 0 ? <IconWithBadge count={count}>{feedback}</IconWithBadge> : feedback}

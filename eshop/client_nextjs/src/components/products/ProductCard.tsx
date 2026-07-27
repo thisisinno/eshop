@@ -20,7 +20,15 @@ function discountPercent(product: ProductCardType) {
   return Math.round(((compare - price) / compare) * 100);
 }
 
-export function ProductCard({ product, variant = "discovery" }: { product: ProductCardType; variant?: ProductCardVariant }) {
+export function ProductCard({
+  product,
+  variant = "discovery",
+  disableTouchMediaSwipe = false,
+}: {
+  product: ProductCardType;
+  variant?: ProductCardVariant;
+  disableTouchMediaSwipe?: boolean;
+}) {
   const [quickViewOpen, setQuickViewOpen] = useState(false);
   const media = product.media_preview?.length ? product.media_preview : product.primary_media_url ? [{
     id: -product.id, media_type: "image" as const, url: product.primary_media_url, title: product.name,
@@ -31,7 +39,7 @@ export function ProductCard({ product, variant = "discovery" }: { product: Produ
     <>
       <article className="snap-card group flex h-full min-w-0 flex-col">
         <div className="relative aspect-[4/3] overflow-hidden rounded-lg bg-[var(--color-primary-soft)]">
-          <ProductMediaCarousel media={media} alt={product.name} linkHref={`/products/${product.id}`} imageSizes="(max-width: 767px) 48vw, (max-width: 1199px) 330px, (max-width: 1439px) 250px, 310px" />
+          <ProductMediaCarousel media={media} alt={product.name} linkHref={`/products/${product.id}`} imageSizes="(max-width: 767px) 48vw, (max-width: 1199px) 330px, (max-width: 1439px) 250px, 310px" allowTouchSwipe={!disableTouchMediaSwipe} />
         </div>
         <div className="flex min-h-[104px] flex-1 flex-col pt-2">
           <Link href={`/products/${product.id}`} className="line-clamp-2 text-[14px] font-black leading-5">{product.name}</Link>

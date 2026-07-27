@@ -19,6 +19,7 @@ type Props = {
   className?: string;
   onIndexChange?: (index: number) => void;
   activeIndex?: number;
+  allowTouchSwipe?: boolean;
 };
 
 export function ProductMediaCarousel({
@@ -31,6 +32,7 @@ export function ProductMediaCarousel({
   className = "",
   onIndexChange,
   activeIndex,
+  allowTouchSwipe = true,
 }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
@@ -158,7 +160,7 @@ export function ProductMediaCarousel({
       onPointerMove={onPointerMove}
       onPointerUp={() => { pointerStart.current = null; }}
       onPointerCancel={() => { pointerStart.current = null; dragged.current = false; }}
-      className={`flex h-full w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [touch-action:pan-x_pan-y] [&::-webkit-scrollbar]:hidden ${className}`}
+      className={`flex h-full w-full ${allowTouchSwipe ? "snap-x snap-mandatory overflow-x-auto overscroll-x-contain [touch-action:pan-x_pan-y]" : "overflow-x-hidden"} [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
     >
       {slides.map((item, slideIndex) => {
         const url = resolveMediaUrl(item.url)!;

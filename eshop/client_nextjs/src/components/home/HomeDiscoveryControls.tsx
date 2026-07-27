@@ -2,59 +2,20 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { CategoryDrawer } from "@/components/categories/CategoryDrawer";
 import { HorizontalChipScroller } from "@/components/ui/HorizontalChipScroller";
 import { hasCategoryChildren, rootCategories } from "@/lib/storefront/categories";
 import type { Category } from "@/types/storefront";
+import { useScrollDirectionVisibility } from "@/hooks/useScrollDirectionVisibility";
 
 export function HomeDiscoveryControls({ categories, activeTab }: { categories: Category[]; activeTab: "for-you" | "following" }) {
   const router = useRouter();
-  const [visible, setVisible] = useState(true);
   const [drawerRoot, setDrawerRoot] = useState<Category | null>(null);
-  const previousY = useRef(0);
-  const accumulated = useRef(0);
-  const frame = useRef<number | null>(null);
+  const { visible, setVisible } = useScrollDirectionVisibility({ paused: drawerRoot !== null });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const roots = rootCategories(categories);
   const closeDrawer = useCallback(() => setDrawerRoot(null), []);
-
-  useEffect(() => {
-    function update() {
-      frame.current = null;
-      if (drawerRoot) {
-        previousY.current = Math.max(0, window.scrollY);
-        return;
-      }
-      const nextY = Math.max(0, window.scrollY);
-      const delta = nextY - previousY.current;
-      previousY.current = nextY;
-      if (nextY <= 12) {
-        accumulated.current = 0;
-        setVisible(true);
-        return;
-      }
-      if (!delta) return;
-      if (Math.sign(delta) !== Math.sign(accumulated.current)) accumulated.current = 0;
-      accumulated.current += delta;
-      if (accumulated.current <= -4) {
-        setVisible(true);
-        accumulated.current = 0;
-      } else if (accumulated.current >= 7) {
-        setVisible(false);
-        accumulated.current = 0;
-      }
-    }
-    function onScroll() {
-      if (frame.current === null) frame.current = window.requestAnimationFrame(update);
-    }
-    previousY.current = Math.max(0, window.scrollY);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (frame.current !== null) window.cancelAnimationFrame(frame.current);
-    };
-  }, [drawerRoot]);
 
   function selectRoot(category: Category, event: React.MouseEvent<HTMLButtonElement>) {
     if (category.slug === "all" || !hasCategoryChildren(categories, category.id)) {

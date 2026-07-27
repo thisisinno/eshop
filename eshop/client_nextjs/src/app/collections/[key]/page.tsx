@@ -1,6 +1,5 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
+import { CollectionHeader } from "@/components/collections/CollectionHeader";
 import { ProductCard } from "@/components/products/ProductCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { serverGet } from "@/lib/api/django";
@@ -13,10 +12,7 @@ export default async function CollectionPage({ params }: { params: Promise<{ key
   if (!shelf) notFound();
   return (
     <section>
-      <div className="sticky top-[58px] z-20 border-b border-[var(--color-border)] bg-white/95 px-3 py-3 backdrop-blur md:top-0 md:px-4">
-        <Link href="/" className="mb-2 inline-flex h-10 items-center gap-2 rounded-full pr-3 text-sm font-bold transition hover:bg-[var(--color-primary-soft)]"><ArrowLeft aria-hidden className="h-5 w-5" />Back</Link>
-        <h1 className="text-2xl font-black">{shelf.title}</h1>
-      </div>
+      <CollectionHeader title={shelf.title} />
       {shelf.products.length ? (
         <div className="product-grid-two p-3 md:p-4">
           {shelf.products.map((product) => <ProductCard key={product.id} product={product} />)}
