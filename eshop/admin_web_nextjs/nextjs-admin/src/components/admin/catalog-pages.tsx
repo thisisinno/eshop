@@ -1544,7 +1544,7 @@ export function ProductDetailPage({ id }: { id: string }) {
               {!product.approval_readiness.commerce.ready ? (
                 <p className="mt-2 text-sm text-orange">
                   {product.stock_quantity <= 0
-                    ? "Customers will not be able to purchase this product."
+                    ? "Add stock before approving this product."
                     : "Stock is below the minimum order quantity."}
                 </p>
               ) : null}

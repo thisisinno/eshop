@@ -14,6 +14,9 @@ from django.utils.text import slugify
 
 from .registration import TraderBranch, TraderProfile
 
+SMARTWEAR_SITE_NAME = "SmartWear"
+LEGACY_SITE_NAMES = {"", "eshop", "e-shop"}
+
 
 def product_media_upload_path(instance, filename):
     """Keep S3 objects grouped by product and use non-guessable filenames."""
@@ -161,8 +164,8 @@ class Product(models.Model):
             errors["specifications"] = "Specifications must be an object."
         if self.status == self.Status.ACTIVE:
             # Local import avoids a models -> services -> models import cycle.
-            from api.services.products import get_interactive_view_activation_issues
-            errors.update(get_interactive_view_activation_issues(self))
+            from api.services.products import get_product_activation_issues
+            errors.update(get_product_activation_issues(self))
         if errors:
             raise ValidationError(errors)
 
@@ -328,7 +331,7 @@ class ProductMedia(models.Model):
 
 
 class SiteBranding(models.Model):
-    site_name = models.CharField(max_length=120, default="SmartWear")
+    site_name = models.CharField(max_length=120, default=SMARTWEAR_SITE_NAME)
     logo = models.ImageField(upload_to=site_logo_upload_path, null=True, blank=True)
     logo_alt_text = models.CharField(max_length=160, blank=True)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="updated_site_branding")
@@ -344,7 +347,12 @@ class SiteBranding(models.Model):
 
     @classmethod
     def get_current(cls):
-        branding, _ = cls.objects.get_or_create(pk=1, defaults={"site_name": "SmartWear"})
+        branding, _ = cls.objects.get_or_create(
+            pk=1, defaults={"site_name": SMARTWEAR_SITE_NAME}
+        )
+        if branding.site_name.strip().lower() in LEGACY_SITE_NAMES:
+            branding.site_name = SMARTWEAR_SITE_NAME
+            branding.save(update_fields=("site_name", "updated_at"))
         return branding
 
     def clean(self):

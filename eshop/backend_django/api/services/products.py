@@ -4,6 +4,48 @@ from api.models import Product, ProductMedia
 from api.services.specifications import validate_product_specification_configuration
 
 
+def get_commerce_activation_issues(product):
+    stock = product.stock_quantity
+    minimum = product.minimum_order_quantity
+    if minimum < 1:
+        return {
+            "minimum_order_quantity": [
+                "Minimum order quantity must be at least 1."
+            ]
+        }
+    if stock <= 0:
+        return {
+            "stock_quantity": [
+                "Add stock before activating this product."
+            ]
+        }
+    if stock < minimum:
+        return {
+            "stock_quantity": [
+                f"Stock quantity is {stock} but the minimum order quantity is {minimum}. "
+                "Increase stock or lower the minimum order quantity."
+            ]
+        }
+    return {}
+
+
+def get_commerce_readiness(product):
+    issues = get_commerce_activation_issues(product)
+    reason = None
+    if product.minimum_order_quantity < 1:
+        reason = "invalid_minimum"
+    elif product.stock_quantity <= 0:
+        reason = "out_of_stock"
+    elif product.stock_quantity < product.minimum_order_quantity:
+        reason = "below_minimum"
+    return {
+        "ready": not issues,
+        "stock_quantity": product.stock_quantity,
+        "minimum_order_quantity": product.minimum_order_quantity,
+        "reason": reason,
+    }
+
+
 def _product_media(product):
     if not product.pk:
         return []
@@ -89,7 +131,9 @@ def _get_specification_activation_issues(product, specification_groups=None):
 
 
 def get_product_activation_issues(product, specification_groups=None):
-    issues = get_interactive_view_activation_issues(product)
+    issues = get_commerce_activation_issues(product)
+    for field, messages in get_interactive_view_activation_issues(product).items():
+        issues.setdefault(field, []).extend(messages)
     details = _get_specification_activation_issues(product, specification_groups)
     for field, messages in details.items():
         issues.setdefault(field, []).extend(
@@ -111,5 +155,6 @@ def get_product_approval_readiness(product):
     return {
         "ready": not issues,
         "issues": [message for messages in issues.values() for message in messages],
+        "commerce": get_commerce_readiness(product),
         "interactive_view": get_interactive_view_readiness(product),
     }

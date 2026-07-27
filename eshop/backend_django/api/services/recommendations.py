@@ -13,7 +13,12 @@ INTERACTION_WEIGHTS = {
 
 
 def public_products_queryset():
-    return Product.objects.filter(status=Product.Status.ACTIVE, trader__status=TraderProfile.Status.APPROVED).select_related("trader", "category", "branch").prefetch_related("media", "related_products__media", "related_products__trader", "specification_groups__options")
+    return Product.objects.filter(
+        status=Product.Status.ACTIVE,
+        trader__status=TraderProfile.Status.APPROVED,
+        stock_quantity__gt=0,
+        stock_quantity__gte=F("minimum_order_quantity"),
+    ).select_related("trader", "category", "branch").prefetch_related("media", "related_products__media", "related_products__trader", "specification_groups__options")
 
 
 def build_home_shelves(user=None, session_key=""):

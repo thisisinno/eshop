@@ -103,15 +103,19 @@ export function CartAction({
   const inCart = hasProduct(productId);
   const minimum = Math.max(1, minimumOrderQuantity || 1);
   const quantity = Math.max(minimum, requestedQuantity ?? minimum);
-  const unavailable = stockQuantity <= 0 || stockQuantity < minimum;
-  const label = unavailable
-    ? `${productName} is currently unavailable`
+  const outOfStock = stockQuantity <= 0;
+  const belowMinimum = !outOfStock && stockQuantity < minimum;
+  const available = !outOfStock && !belowMinimum;
+  const label = outOfStock
+    ? `${productName} is out of stock`
+    : belowMinimum
+      ? `Only ${stockQuantity} unit${stockQuantity === 1 ? "" : "s"} are available; minimum order is ${minimum}`
     : inCart
       ? `${productName} is already in cart`
       : `Add ${productName} to cart`;
 
   async function submit(optionIds: number[] = []) {
-    if (unavailable || loading) return;
+    if (!available || loading) return;
     if (inCart && !hasSelectableSpecifications) {
       toast.info("Already in cart");
       return;
@@ -182,7 +186,7 @@ export function CartAction({
     <>
     <button ref={triggerRef}
       type="button"
-      disabled={loading || unavailable}
+      disabled={loading || !available}
       onClick={add}
       aria-label={label}
       title={label}

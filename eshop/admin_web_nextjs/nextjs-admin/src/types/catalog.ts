@@ -12,7 +12,7 @@ export interface ProductApprovalReadiness {
     ready: boolean;
     stock_quantity: number;
     minimum_order_quantity: number;
-    reason: "out_of_stock" | "below_minimum" | null;
+    reason: "invalid_minimum" | "out_of_stock" | "below_minimum" | null;
   };
   interactive_view: {
     enabled: boolean;

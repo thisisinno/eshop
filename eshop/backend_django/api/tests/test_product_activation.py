@@ -70,6 +70,29 @@ class ProductActivationTests(TestCase):
         product.refresh_from_db()
         self.assertEqual(product.status, Product.Status.ACTIVE)
 
+    def test_zero_stock_product_cannot_be_approved(self):
+        product = self.product(stock_quantity=0)
+        response = self.approve(product)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Add stock before activating this product.", str(response.data))
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
+
+    def test_stock_below_minimum_cannot_be_approved(self):
+        product = self.product(stock_quantity=2, minimum_order_quantity=5)
+        response = self.approve(product)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("minimum order quantity is 5", str(response.data))
+        product.refresh_from_db()
+        self.assertEqual(product.status, Product.Status.PENDING_REVIEW)
+
+    def test_approval_preserves_valid_stock(self):
+        product = self.product(stock_quantity=10, minimum_order_quantity=1)
+        response = self.approve(product)
+        self.assertEqual(response.status_code, 200, response.data)
+        product.refresh_from_db()
+        self.assertEqual(product.stock_quantity, 10)
+
     def test_approval_locks_only_product_row_with_nullable_relations(self):
         product = self.product(
             branch=None,

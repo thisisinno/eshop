@@ -292,12 +292,18 @@ class BrandStatusPublicSerializer(serializers.ModelSerializer):
 
 
 class SiteBrandingPublicSerializer(serializers.ModelSerializer):
+    site_name = serializers.SerializerMethodField()
     logo_url = serializers.SerializerMethodField()
     statuses = serializers.SerializerMethodField()
 
     class Meta:
         model = SiteBranding
         fields = ("site_name", "logo_url", "logo_alt_text", "statuses", "updated_at")
+
+    def get_site_name(self, obj):
+        from api.models.catalog import LEGACY_SITE_NAMES, SMARTWEAR_SITE_NAME
+        value = (obj.site_name or "").strip()
+        return SMARTWEAR_SITE_NAME if value.lower() in LEGACY_SITE_NAMES else value
 
     def get_logo_url(self, obj):
         return file_url(obj.logo, self.context.get("request"))

@@ -30,7 +30,7 @@ export function ProductComposer() {
   const [publishError, setPublishError] = useState("");
   const [draft, setDraft] = useState({
     name: "", sku: "", currency: "TZS", unit: "", short_description: "", description: "",
-    price: "", compare_at_price: "", delivery_fee: "0", stock_quantity: "0", minimum_order_quantity: "1",
+    price: "", compare_at_price: "", delivery_fee: "0", stock_quantity: "", minimum_order_quantity: "1",
     view_360_enabled: false, view_360_mode: "spin" as "spin" | "model",
   });
   const updateDraft = (key: keyof typeof draft, value: string | boolean) => setDraft((current) => ({ ...current, [key]: value }));
@@ -42,12 +42,21 @@ export function ProductComposer() {
     : "Upload a GLB model, or continue without 360.";
   async function saveDraft(status = "draft", overrides: Partial<typeof draft> = {}) {
     const nextErrors: Record<string, string> = {};
+    const nextDraft = { ...draft, ...overrides };
+    const stock = Number(nextDraft.stock_quantity);
+    const minimum = Number(nextDraft.minimum_order_quantity);
+    const submitting = status !== "draft";
     if (!trader) nextErrors.trader = "Select a store.";
     if (!category) nextErrors.category = "Select a category.";
     if (!draft.name.trim()) nextErrors.name = "Enter a product name.";
     if (!draft.price || Number(draft.price) < 0) nextErrors.price = "Enter a valid price.";
-    if (Number(draft.stock_quantity) < 0) nextErrors.stock_quantity = "Stock cannot be negative.";
-    if (Number(draft.minimum_order_quantity) < 1) nextErrors.minimum_order_quantity = "Minimum quantity must be at least 1.";
+    if (nextDraft.stock_quantity.trim() === "") nextErrors.stock_quantity = submitting
+      ? "Stock is required before submitting this product for review."
+      : "Stock is required.";
+    else if (!Number.isInteger(stock) || stock < 0) nextErrors.stock_quantity = "Stock must be a whole number of zero or more.";
+    else if (submitting && stock <= 0) nextErrors.stock_quantity = "Add stock before submitting this product for review.";
+    if (!Number.isInteger(minimum) || minimum < 1) nextErrors.minimum_order_quantity = "Minimum quantity must be a whole number of at least 1.";
+    else if (submitting && stock < minimum) nextErrors.stock_quantity = "Stock quantity must be at least the minimum order quantity.";
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) throw new Error("Complete the required product details.");
     setLoading(true);
@@ -236,9 +245,13 @@ function InteractiveMediaStep({ productId, draft, updateDraft, media, setMedia }
   return <div className="space-y-4"><h2 className="text-lg font-black">Does this product have an interactive 360 / 3D view?</h2><div className="flex gap-2"><Button type="button" variant={!draft.view_360_enabled ? "primary" : "outline"} onClick={() => updateDraft("view_360_enabled", false)}>No</Button><Button type="button" variant={draft.view_360_enabled ? "primary" : "outline"} onClick={() => updateDraft("view_360_enabled", true)}>Yes</Button></div>{draft.view_360_enabled ? <><div className="flex gap-4"><label><input type="radio" checked={draft.view_360_mode === "spin"} onChange={() => updateDraft("view_360_mode", "spin")} /> 360 image spin</label><label><input type="radio" checked={draft.view_360_mode === "model"} onChange={() => updateDraft("view_360_mode", "model")} /> 3D GLB model</label></div>{draft.view_360_mode === "spin" ? <><Card className="p-4 text-sm"><h3 className="font-black">How to create a good 360 product view</h3><ol className="mt-2 list-decimal space-y-1 pl-5"><li>Place the product in one fixed position.</li><li>Keep camera height and distance unchanged.</li><li>Keep lighting and background unchanged.</li><li>Rotate the product equally between images.</li><li>Upload images in rotation order.</li><li>Minimum 12; 24–36 is smoother.</li></ol><p className="mt-3 font-bold">{frames} / 12 frames · {frames >= 12 ? "✓ Ready for 360" : `Need ${12 - frames} more`}</p></Card><MediaUploader productId={productId} media={media} setMedia={setMedia} mediaType="spin" /></> : <><Card className="p-4 text-sm"><h3 className="font-black">Upload one .GLB model of the product</h3><p className="mt-1">Accepted format: GLB. Maximum size: 120MB. Customers can drag to rotate and zoom.</p></Card><MediaUploader productId={productId} media={media} setMedia={setMedia} mediaType="model" /><p className="text-sm font-bold">Optional poster image</p><MediaUploader productId={productId} media={media} setMedia={setMedia} mediaType="poster" /></>}</> : <p className="text-sm text-[var(--color-text-secondary)]">Continue without 360. Ordinary products do not require it.</p>}</div>;
 }
 
-function Preview({ productId, draft, trader, category, media }: { productId: number | null; draft: { name: string; price: string; currency: string; short_description: string; stock_quantity: string; delivery_fee: string; view_360_enabled: boolean; view_360_mode: "spin" | "model" }; trader: number | null; category: number | null; media: ProductMedia[] }) {
+function Preview({ productId, draft, trader, category, media }: { productId: number | null; draft: { name: string; price: string; currency: string; short_description: string; stock_quantity: string; minimum_order_quantity: string; delivery_fee: string; view_360_enabled: boolean; view_360_mode: "spin" | "model" }; trader: number | null; category: number | null; media: ProductMedia[] }) {
   const gallery = media.filter((item) => ["image", "clip"].includes(item.media_type));
   const validFrames = new Set(media.filter((item) => item.media_type === "spin_frame" && item.frame_index !== null).map((item) => item.frame_index)).size;
   const ready360 = !draft.view_360_enabled || (draft.view_360_mode === "spin" ? validFrames >= 12 : media.some((item) => item.media_type === "model_3d"));
-  return <div className="grid gap-5 md:grid-cols-2"><div className="aspect-[4/5] rounded-xl bg-[var(--color-primary-soft)] p-6"><p className="text-sm font-bold">{gallery.length ? `${gallery.length} gallery slide${gallery.length === 1 ? "" : "s"}` : "No cover image yet"}</p></div><div><p className="text-xs font-bold text-[var(--color-text-secondary)]">DRAFT PREVIEW · #{productId}</p><h2 className="mt-2 text-2xl font-black">{draft.name || "Untitled product"}</h2><p className="mt-3 text-xl font-black">{draft.currency} {Number(draft.price || 0).toLocaleString()}</p><p className="mt-3 text-sm">{draft.short_description}</p><ul className="mt-5 space-y-2 text-sm"><li>{trader ? "✓" : "○"} Store selected</li><li>{category ? "✓" : "○"} Category selected</li><li>{draft.name && draft.price ? "✓" : "○"} Product details complete</li><li>{gallery.some((item) => item.media_type === "image") ? "✓" : "○"} Cover image uploaded</li><li>{gallery.length ? "✓" : "○"} Gallery available</li><li>{ready360 ? "✓" : "○"} 360 readiness</li></ul></div></div>;
+  const stock = Number(draft.stock_quantity);
+  const minimum = Number(draft.minimum_order_quantity);
+  const stockReady = draft.stock_quantity.trim() !== "" && Number.isInteger(stock) && stock > 0 && Number.isInteger(minimum) && minimum >= 1 && stock >= minimum;
+  const stockGuidance = draft.stock_quantity.trim() === "" ? "Stock is required before submitting for review." : stock <= 0 ? "Add stock before submitting for review." : stock < minimum ? `Stock must be at least the minimum order quantity (${minimum}).` : "";
+  return <div className="grid gap-5 md:grid-cols-2"><div className="aspect-[4/5] rounded-xl bg-[var(--color-primary-soft)] p-6"><p className="text-sm font-bold">{gallery.length ? `${gallery.length} gallery slide${gallery.length === 1 ? "" : "s"}` : "No cover image yet"}</p></div><div><p className="text-xs font-bold text-[var(--color-text-secondary)]">DRAFT PREVIEW · #{productId}</p><h2 className="mt-2 text-2xl font-black">{draft.name || "Untitled product"}</h2><p className="mt-3 text-xl font-black">{draft.currency} {Number(draft.price || 0).toLocaleString()}</p><p className="mt-3 text-sm">{draft.short_description}</p><ul className="mt-5 space-y-2 text-sm"><li>{trader ? "✓" : "○"} Store selected</li><li>{category ? "✓" : "○"} Category selected</li><li>{draft.name && draft.price ? "✓" : "○"} Product details complete</li><li>{gallery.some((item) => item.media_type === "image") ? "✓" : "○"} Cover image uploaded</li><li>{gallery.length ? "✓" : "○"} Gallery available</li><li>{ready360 ? "✓" : "○"} 360 / 3D readiness</li><li>{stockReady ? "✓" : "✕"} Stock: {draft.stock_quantity || "not entered"}{stockReady ? "" : <span className="ml-2 text-red-700">{stockGuidance}</span>}</li></ul></div></div>;
 }
