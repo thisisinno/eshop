@@ -82,7 +82,7 @@ function NavigationAction({
   const active = isActive(pathname, targetPath)
     && (targetQuery
       ? Array.from(new URLSearchParams(targetQuery)).every(([key, value]) => searchParams.get(key) === value)
-      : !(targetPath === "/search" && searchParams.get("tab") === "stores"));
+      : true);
 
   const feedbackState = useRouteFeedback(href, { active, onNavigate });
 
@@ -132,7 +132,7 @@ function moreItems(canPost: boolean) {
     { href: "/search", label: "Search", Icon: Search },
     { href: "/profile", label: "Profile", Icon: UserIcon },
     { href: "/orders", label: "Orders", Icon: Package },
-    { href: "/search?tab=stores", label: "Stores", Icon: Store },
+    { href: "/stores", label: "Stores", Icon: Store },
     ...(canPost ? [{ href: "/post/product", label: "Post product", Icon: Plus }] : []),
   ];
 }

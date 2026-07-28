@@ -9,7 +9,7 @@ export default async function ProfilePage() {
   const rows = [
     { href: "/orders", label: "Orders", Icon: Package },
     { href: "/saved", label: "My List", Icon: Check },
-    { href: "/search?tab=stores", label: "Followed stores", Icon: Store },
+    { href: "/stores?scope=following", label: "Followed stores", Icon: Store },
     { href: "/profile", label: "Settings", Icon: Settings },
   ];
   return (

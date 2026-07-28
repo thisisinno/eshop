@@ -84,7 +84,8 @@ export function SearchClient({ initialQuery, initialData, initialFilters }: { in
             onKeyDown={(event) => {
               if (event.key === "Enter") event.preventDefault();
             }}
-            placeholder="Search products, stores, categories"
+            aria-label="Search products and categories"
+            placeholder="Search products and categories"
             className="h-11 w-full rounded-full border border-[var(--color-border-strong)] bg-white pl-10 pr-10 text-sm focus:border-[var(--color-text)] focus:outline-none"
           />
           {query ? <button type="button" aria-label="Clear search" onClick={clear} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-text-secondary)]"><X aria-hidden className="h-4 w-4" /></button> : null}
@@ -96,7 +97,7 @@ export function SearchClient({ initialQuery, initialData, initialFilters }: { in
       <div className="border-b border-[var(--color-border)] px-4 py-2 text-xs font-semibold text-[var(--color-text-secondary)]">
         {loading ? "Searching..." : `${data.count} results`}
       </div>
-      {data.results.length ? <div className="product-grid-two p-3 md:p-4">{data.results.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="p-4"><EmptyState title={query ? "No products found" : "Search SmartWear"}>{query ? "Try a different search or remove filters." : "Start typing to find products, stores, and categories."}</EmptyState></div>}
+      {data.results.length ? <div className="product-grid-two p-3 md:p-4">{data.results.map((product) => <ProductCard key={product.id} product={product} />)}</div> : <div className="p-4"><EmptyState title={query ? "No products found" : "Search SmartWear"}>{query ? "Try a different search or remove filters." : "Start typing to find products and categories."}</EmptyState></div>}
       <SortDrawer open={sortOpen} value={sort} onChange={setSort} onClose={() => setSortOpen(false)} returnFocusRef={sortTriggerRef} />
     </>
   );

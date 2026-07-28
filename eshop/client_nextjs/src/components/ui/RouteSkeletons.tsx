@@ -70,6 +70,29 @@ export function StoreProfileSkeleton() {
   return <section><div className="overflow-hidden border-b border-[var(--color-border)] bg-white"><Skeleton className="h-32 rounded-none md:h-44" /><div className="px-4 pb-4"><div className="-mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div className="flex items-end gap-3"><Skeleton className="h-20 w-20 rounded-xl border-4 border-white" /><div className="pb-1"><Skeleton className="h-7 w-48" /><Skeleton className="mt-2 h-4 w-32" /></div></div><Skeleton className="h-10 w-24 rounded-full" /></div><Skeleton className="mt-4 h-4 w-40" /><Skeleton className="mt-3 h-4 w-2/3" /><ChipRowSkeleton count={5} /><Skeleton className="mt-1 h-11 rounded-full" /></div></div><ProductGridSkeleton /></section>;
 }
 
+export function StoresDirectorySkeleton() {
+  return (
+    <section>
+      <div className="sticky top-[58px] z-20 border-b border-[var(--color-border)] bg-white/95 backdrop-blur md:top-0">
+        <div className="px-4 pb-3 pt-4">
+          <div className="flex items-center justify-between gap-4"><Skeleton className="h-8 w-28" /><Skeleton className="h-4 w-16" /></div>
+          <Skeleton className="mt-3 h-11 w-full rounded-full" />
+          <div className="mt-3 flex gap-2"><Skeleton className="h-9 w-16 rounded-full" /><Skeleton className="h-9 w-24 rounded-full" /></div>
+        </div>
+      </div>
+      <div className="divide-y divide-[var(--color-border)]" aria-hidden>
+        {Array.from({ length: 7 }).map((_, index) => (
+          <div key={index} className="grid min-h-20 grid-cols-[52px_minmax(0,1fr)_20px] items-center gap-3 bg-white px-4 py-3">
+            <Skeleton className="h-12 w-12 rounded-full" />
+            <div><Skeleton className="h-4 w-2/3" /><Skeleton className="mt-2 h-3 w-2/5" /><Skeleton className="mt-2 h-3 w-3/5" /></div>
+            <Skeleton className="h-5 w-5 rounded-full" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function OrdersSkeleton() {
   return <section><PageTitleSkeleton />{Array.from({ length: 4 }).map((_, index) => <div key={index} className="grid grid-cols-[124px_1fr] gap-3 border-b border-[var(--color-border)] bg-white p-4"><Skeleton className="aspect-[4/3] rounded-lg" /><div><Skeleton className="h-5 w-32" /><Skeleton className="mt-2 h-4 w-44" /><Skeleton className="mt-4 h-5 w-28" /><Skeleton className="mt-2 h-3 w-48" /></div></div>)}</section>;
 }
