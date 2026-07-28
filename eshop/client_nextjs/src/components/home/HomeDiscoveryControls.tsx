@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CategoryDrawer } from "@/components/categories/CategoryDrawer";
 import { HorizontalChipScroller } from "@/components/ui/HorizontalChipScroller";
 import { hasCategoryChildren, rootCategories } from "@/lib/storefront/categories";
@@ -16,6 +16,12 @@ export function HomeDiscoveryControls({ categories, activeTab }: { categories: C
   const triggerRef = useRef<HTMLButtonElement>(null);
   const roots = rootCategories(categories);
   const closeDrawer = useCallback(() => setDrawerRoot(null), []);
+
+  useEffect(() => {
+    const show = () => setVisible(true);
+    window.addEventListener("smartwear:show-home-controls", show);
+    return () => window.removeEventListener("smartwear:show-home-controls", show);
+  }, [setVisible]);
 
   function selectRoot(category: Category, event: React.MouseEvent<HTMLButtonElement>) {
     if (category.slug === "all" || !hasCategoryChildren(categories, category.id)) {

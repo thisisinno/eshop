@@ -1,6 +1,7 @@
 from django.db.models import Count, F, Q
 
-from api.models import Product, StoreFollow, TraderProfile, UserActivityLog
+from api.models import Product, TraderProfile, UserActivityLog
+from api.services.store_follows import followed_trader_ids
 
 
 INTERACTION_WEIGHTS = {
@@ -21,7 +22,7 @@ def public_products_queryset():
     ).select_related("trader", "category", "branch").prefetch_related("media", "related_products__media", "related_products__trader", "specification_groups__options")
 
 
-def build_home_shelves(user=None, session_key=""):
+def build_home_shelves(user=None, session_key="", followed_store_ids=None):
     base = public_products_queryset()
     shelves = []
     used_ids = set()
@@ -34,10 +35,16 @@ def build_home_shelves(user=None, session_key=""):
             used_ids.update(item.id for item in items)
             shelves.append({"key": key, "title": title, "products": items})
 
-    followed_trader_ids = []
-    if user and user.is_authenticated:
-        followed_trader_ids = list(StoreFollow.objects.filter(user=user).values_list("trader_id", flat=True))
-        add_shelf("following", "From Stores You Follow", base.filter(trader_id__in=followed_trader_ids).order_by("-created_at"))
+    if followed_store_ids is None:
+        followed_store_ids = followed_trader_ids(
+            user=user, session_key=session_key
+        )
+    if followed_store_ids:
+        add_shelf(
+            "following",
+            "From Stores You Follow",
+            base.filter(trader_id__in=followed_store_ids).order_by("-created_at"),
+        )
 
     affinity_filter = Q()
     activity = UserActivityLog.objects.filter(product__isnull=False)
@@ -53,8 +60,8 @@ def build_home_shelves(user=None, session_key=""):
         affinity_filter |= Q(category_id__in=list(categories))
     if traders:
         affinity_filter |= Q(trader_id__in=list(traders))
-    if followed_trader_ids:
-        affinity_filter |= Q(trader_id__in=followed_trader_ids)
+    if followed_store_ids:
+        affinity_filter |= Q(trader_id__in=followed_store_ids)
 
     add_shelf("for_you", "For You", base.filter(affinity_filter).order_by("-is_featured", "-sold_count", "-views_count", "-created_at") if affinity_filter else base.order_by("-is_featured", "-sold_count", "-views_count", "-created_at"))
     add_shelf("trending", "Trending", base.annotate(interaction_count=Count("activity_logs")).order_by("-interaction_count", "-views_count", "-created_at"))

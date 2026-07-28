@@ -12,7 +12,7 @@ export async function Shell({ children, user }: { children: React.ReactNode; use
   const [cart, stores, home, unread, branding, bookmarks] = await Promise.all([
     user ? serverGet<Cart>("/storefront/cart/").catch(() => null) : Promise.resolve(null),
     serverGet<StoreSummary[]>("/storefront/stores/").catch(() => []),
-    serverGet<HomeResponse>("/storefront/home/").catch(() => ({ shelves: [] })),
+    serverGet<HomeResponse>("/storefront/home/").catch(() => ({ shelves: [], following_store_count: 0 })),
     user ? serverGet<{ count: number }>("/storefront/notifications/unread-count/").catch(() => ({ count: 0 })) : Promise.resolve({ count: 0 }),
     serverGet<SiteBranding>("/storefront/branding/").catch(() => ({ site_name: "SmartWear", logo_url: null, logo_alt_text: "", statuses: [], updated_at: "" })),
     user ? serverGet<{ count: number }>("/storefront/bookmarks/?page_size=1").catch(() => ({ count: 0 })) : Promise.resolve({ count: 0 }),

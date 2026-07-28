@@ -20,6 +20,13 @@ from api.services.notifications import create_activity_notification, mark_all_re
 from api.services.recommendations import build_home_shelves, public_products_queryset
 from api.services.categories import filter_products_by_category_subtree
 from api.services.specifications import resolve_product_specification_selection
+from api.services.store_follows import (
+    ANONYMOUS_SESSION_ERROR,
+    follow_store,
+    followed_trader_ids,
+    unfollow_store,
+    viewer_store_follow_filter,
+)
 
 
 class StorefrontPagination(PageNumberPagination):
@@ -66,7 +73,14 @@ def annotate_stores(queryset, request):
     active_product_filter = Q(products__status=Product.Status.ACTIVE, products__trader__status=TraderProfile.Status.APPROVED)
     queryset = queryset.annotate(follower_count=Count("followers", distinct=True), product_count=Count("products", filter=active_product_filter, distinct=True))
     if request.user.is_authenticated:
-        return queryset.annotate(is_following=Exists(StoreFollow.objects.filter(user=request.user, trader=OuterRef("pk"))))
+        return queryset.annotate(is_following=Exists(StoreFollow.objects.filter(user=request.user, session_key="", trader=OuterRef("pk"))))
+    identity = viewer_store_follow_filter(session_key=session_key(request))
+    if identity is not None:
+        return queryset.annotate(
+            is_following=Exists(
+                StoreFollow.objects.filter(identity, trader=OuterRef("pk"))
+            )
+        )
     return queryset.annotate(is_following=Value(False, output_field=BooleanField()))
 
 
@@ -116,8 +130,16 @@ class StorefrontHomeAPIView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        shelves = build_home_shelves(request.user if request.user.is_authenticated else None, session_key(request))
+        user = request.user if request.user.is_authenticated else None
+        anonymous_session = session_key(request)
+        followed_store_ids = followed_trader_ids(
+            user=user, session_key=anonymous_session
+        )
+        shelves = build_home_shelves(
+            user, anonymous_session, followed_store_ids=followed_store_ids
+        )
         return Response({
+            "following_store_count": len(followed_store_ids),
             "shelves": [
                 {"key": shelf["key"], "title": shelf["title"], "products": PublicProductCardSerializer(annotate_products(Product.objects.filter(pk__in=[p.pk for p in shelf["products"]]).select_related("trader", "category").prefetch_related("media"), request), many=True, context={"request": request}).data}
                 for shelf in shelves
@@ -279,19 +301,53 @@ class StorefrontStoreDetailAPIView(APIView):
 
 
 class StoreFollowAPIView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request, slug):
         trader = get_object_or_404(TraderProfile, slug=slug, status=TraderProfile.Status.APPROVED)
-        StoreFollow.objects.get_or_create(user=request.user, trader=trader)
-        record_activity(request, UserActivityLog.Action.STORE_FOLLOW, trader=trader)
-        return Response({"is_following": True}, status=status.HTTP_201_CREATED)
+        try:
+            _, created = follow_store(
+                trader=trader,
+                user=request.user,
+                session_key=session_key(request),
+            )
+        except ValueError:
+            return Response(
+                {"detail": ANONYMOUS_SESSION_ERROR},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if created:
+            record_activity(request, UserActivityLog.Action.STORE_FOLLOW, trader=trader)
+        return Response(
+            {
+                "is_following": True,
+                "follower_count": trader.followers.count(),
+                "created": created,
+            },
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     def delete(self, request, slug):
         trader = get_object_or_404(TraderProfile, slug=slug, status=TraderProfile.Status.APPROVED)
-        StoreFollow.objects.filter(user=request.user, trader=trader).delete()
-        record_activity(request, UserActivityLog.Action.STORE_UNFOLLOW, trader=trader)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        try:
+            deleted = unfollow_store(
+                trader=trader,
+                user=request.user,
+                session_key=session_key(request),
+            )
+        except ValueError:
+            return Response(
+                {"detail": ANONYMOUS_SESSION_ERROR},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if deleted:
+            record_activity(request, UserActivityLog.Action.STORE_UNFOLLOW, trader=trader)
+        return Response(
+            {
+                "is_following": False,
+                "follower_count": trader.followers.count(),
+            }
+        )
 
 
 class ProductBookmarkAPIView(APIView):

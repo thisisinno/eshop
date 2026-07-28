@@ -105,7 +105,12 @@ export type ProductSpecificationGroup = { id: number; name: string; selection_mo
 export type SelectedSpecification = { group_id: number; group_name: string; option_id: number; value: string; price_adjustment: string };
 
 export type Shelf = { key: string; title: string; products: ProductCard[] };
-export type HomeResponse = { shelves: Shelf[] };
+export type HomeResponse = { following_store_count: number; shelves: Shelf[] };
+export type StoreFollowResponse = {
+  is_following: boolean;
+  follower_count: number;
+  created?: boolean;
+};
 export type Paginated<T> = { count: number; page: number; page_size: number; total_pages: number; next: string | null; previous: string | null; results: T[] };
 export type StoreDetail = StoreSummary & { phone: string; email: string; address_description: string; categories: Category[] };
 

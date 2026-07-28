@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 from decimal import Decimal
 
 from .catalog import Product
@@ -8,17 +9,56 @@ from .registration import TraderProfile
 
 
 class StoreFollow(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="store_follows")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="store_follows",
+    )
+    session_key = models.CharField(max_length=100, blank=True, db_index=True)
     trader = models.ForeignKey(TraderProfile, on_delete=models.CASCADE, related_name="followers")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ("-created_at",)
-        constraints = [models.UniqueConstraint(fields=("user", "trader"), name="unique_store_follow")]
-        indexes = [models.Index(fields=("trader", "created_at")), models.Index(fields=("user", "created_at"))]
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user", "trader"),
+                condition=Q(user__isnull=False),
+                name="unique_user_store_follow",
+            ),
+            models.UniqueConstraint(
+                fields=("session_key", "trader"),
+                condition=Q(user__isnull=True) & ~Q(session_key=""),
+                name="unique_anonymous_store_follow",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    (Q(user__isnull=False) & Q(session_key=""))
+                    | (Q(user__isnull=True) & ~Q(session_key=""))
+                ),
+                name="store_follow_exactly_one_identity",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("trader", "created_at")),
+            models.Index(fields=("user", "created_at")),
+            models.Index(fields=("session_key", "created_at")),
+        ]
+
+    def clean(self):
+        super().clean()
+        has_user = self.user_id is not None
+        has_session = bool(self.session_key)
+        if has_user == has_session:
+            raise ValidationError(
+                "A store follow must belong to exactly one user or anonymous session."
+            )
 
     def __str__(self):
-        return f"{self.user} follows {self.trader}"
+        viewer = str(self.user) if self.user_id else f"anonymous:{self.session_key[:8]}"
+        return f"{viewer} follows {self.trader}"
 
 
 class ProductBookmark(models.Model):

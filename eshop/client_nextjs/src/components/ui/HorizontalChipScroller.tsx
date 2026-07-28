@@ -37,7 +37,7 @@ export function HorizontalChipScroller({ children }: { children: React.ReactNode
   }
 
   return (
-    <div className="relative">
+    <div className="relative" data-home-tab-swipe-ignore>
       <div ref={viewportRef} className="flex flex-nowrap gap-2 overflow-x-auto px-3 py-3 pr-8 [scrollbar-width:none] [&>*]:shrink-0 [&::-webkit-scrollbar]:hidden md:px-4 md:pr-10">
         {children}
       </div>

@@ -110,6 +110,190 @@ class StorefrontAPITests(TestCase):
         self.client.delete(f"/api/storefront/stores/{self.store.slug}/follow/")
         self.assertFalse(StoreFollow.objects.filter(user=self.customer, trader=self.store).exists())
 
+    def test_anonymous_follow_is_unique_per_session_and_returns_count(self):
+        url = f"/api/storefront/stores/{self.store.slug}/follow/"
+        first = self.client.post(url, HTTP_X_ANONYMOUS_SESSION="session-one")
+        duplicate = self.client.post(url, HTTP_X_ANONYMOUS_SESSION="session-one")
+        other = self.client.post(url, HTTP_X_ANONYMOUS_SESSION="session-two")
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(first.data["created"], True)
+        self.assertEqual(duplicate.status_code, 200)
+        self.assertEqual(duplicate.data["created"], False)
+        self.assertEqual(other.data["follower_count"], 2)
+        self.assertEqual(
+            StoreFollow.objects.filter(user__isnull=True, trader=self.store).count(),
+            2,
+        )
+
+    def test_anonymous_follow_requires_session_and_rejects_hidden_store(self):
+        missing = self.client.post(
+            f"/api/storefront/stores/{self.store.slug}/follow/"
+        )
+        hidden = self.client.post(
+            f"/api/storefront/stores/{self.pending_store.slug}/follow/",
+            HTTP_X_ANONYMOUS_SESSION="session-one",
+        )
+        self.assertEqual(missing.status_code, 400)
+        self.assertIn("Anonymous session", missing.data["detail"])
+        self.assertEqual(hidden.status_code, 404)
+
+    def test_anonymous_unfollow_removes_only_matching_session(self):
+        url = f"/api/storefront/stores/{self.store.slug}/follow/"
+        self.client.post(url, HTTP_X_ANONYMOUS_SESSION="session-one")
+        self.client.post(url, HTTP_X_ANONYMOUS_SESSION="session-two")
+        response = self.client.delete(
+            url, HTTP_X_ANONYMOUS_SESSION="session-one"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["follower_count"], 1)
+        self.assertFalse(
+            StoreFollow.objects.filter(session_key="session-one").exists()
+        )
+        self.assertTrue(
+            StoreFollow.objects.filter(session_key="session-two").exists()
+        )
+
+    def test_store_annotations_include_anonymous_identity_and_all_followers(self):
+        StoreFollow.objects.create(
+            user=self.customer, session_key="", trader=self.store
+        )
+        StoreFollow.objects.create(
+            user=None, session_key="matching-session", trader=self.store
+        )
+        matching = self.client.get(
+            "/api/storefront/stores/",
+            HTTP_X_ANONYMOUS_SESSION="matching-session",
+        )
+        other = self.client.get(
+            "/api/storefront/stores/",
+            HTTP_X_ANONYMOUS_SESSION="other-session",
+        )
+        matching_store = next(
+            item for item in matching.data if item["id"] == self.store.id
+        )
+        other_store = next(
+            item for item in other.data if item["id"] == self.store.id
+        )
+        self.assertTrue(matching_store["is_following"])
+        self.assertFalse(other_store["is_following"])
+        self.assertEqual(matching_store["follower_count"], 2)
+        detail = self.client.get(
+            f"/api/storefront/stores/{self.store.slug}/",
+            HTTP_X_ANONYMOUS_SESSION="matching-session",
+        )
+        self.assertTrue(detail.data["store"]["is_following"])
+
+    def test_anonymous_home_following_products_and_metadata(self):
+        StoreFollow.objects.create(
+            user=None, session_key="home-session", trader=self.store
+        )
+        other_store = TraderProfile.objects.create(
+            trader_type=TraderProfile.TraderType.COMPANY,
+            business_name="Other Approved Store",
+            phone="555",
+            status=TraderProfile.Status.APPROVED,
+        )
+        Product.objects.create(
+            trader=other_store,
+            category=self.category,
+            name="Unrelated Product",
+            price=Decimal("10.00"),
+            stock_quantity=2,
+            status=Product.Status.ACTIVE,
+        )
+        response = self.client.get(
+            "/api/storefront/home/",
+            HTTP_X_ANONYMOUS_SESSION="home-session",
+        )
+        following = next(
+            shelf for shelf in response.data["shelves"] if shelf["key"] == "following"
+        )
+        names = [product["name"] for product in following["products"]]
+        self.assertEqual(response.data["following_store_count"], 1)
+        self.assertIn(self.product.name, names)
+        self.assertNotIn("Unrelated Product", names)
+
+    def test_followed_store_without_products_still_counts_in_home(self):
+        empty_store = TraderProfile.objects.create(
+            trader_type=TraderProfile.TraderType.COMPANY,
+            business_name="Empty Store",
+            phone="777",
+            status=TraderProfile.Status.APPROVED,
+        )
+        StoreFollow.objects.create(
+            user=None, session_key="empty-session", trader=empty_store
+        )
+        response = self.client.get(
+            "/api/storefront/home/",
+            HTTP_X_ANONYMOUS_SESSION="empty-session",
+        )
+        self.assertEqual(response.data["following_store_count"], 1)
+        self.assertFalse(
+            any(shelf["key"] == "following" for shelf in response.data["shelves"])
+        )
+
+    def test_signin_claims_anonymous_follows_without_double_counting(self):
+        StoreFollow.objects.create(
+            user=self.customer, session_key="", trader=self.store
+        )
+        StoreFollow.objects.create(
+            user=None, session_key="claim-session", trader=self.store
+        )
+        response = self.client.post(
+            "/api/auth/signin/",
+            {"email_or_username": "customer", "password": "password123"},
+            format="json",
+            HTTP_X_ANONYMOUS_SESSION="claim-session",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            StoreFollow.objects.filter(user=self.customer, trader=self.store).count(),
+            1,
+        )
+        self.assertFalse(
+            StoreFollow.objects.filter(session_key="claim-session").exists()
+        )
+        self.assertEqual(self.store.followers.count(), 1)
+
+    def test_signup_claims_anonymous_follows(self):
+        StoreFollow.objects.create(
+            user=None, session_key="signup-session", trader=self.store
+        )
+        response = self.client.post(
+            "/api/auth/signup/",
+            {
+                "username": "claimed-customer",
+                "email": "claimed@example.com",
+                "password": "password123",
+                "confirm_password": "password123",
+            },
+            format="json",
+            HTTP_X_ANONYMOUS_SESSION="signup-session",
+        )
+        self.assertEqual(response.status_code, 201)
+        user = User.objects.get(username="claimed-customer")
+        self.assertTrue(
+            StoreFollow.objects.filter(user=user, trader=self.store).exists()
+        )
+        self.assertFalse(
+            StoreFollow.objects.filter(session_key="signup-session").exists()
+        )
+
+    def test_store_follow_model_requires_exactly_one_identity(self):
+        with self.assertRaises(ValidationError):
+            StoreFollow(user=None, session_key="", trader=self.store).clean()
+        with self.assertRaises(ValidationError):
+            StoreFollow(
+                user=self.customer,
+                session_key="also-anonymous",
+                trader=self.store,
+            ).clean()
+        StoreFollow(user=self.customer, session_key="", trader=self.store).clean()
+        StoreFollow(
+            user=None, session_key="anonymous-only", trader=self.store
+        ).clean()
+
     def test_store_detail_returns_only_public_products(self):
         response = self.client.get(f"/api/storefront/stores/{self.store.slug}/")
         names = [item["name"] for item in response.data["results"]]

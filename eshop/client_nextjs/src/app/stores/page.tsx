@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { StoresDirectoryClient } from "@/components/stores/StoresDirectoryClient";
 import { serverGet } from "@/lib/api/django";
-import { getCurrentUser } from "@/lib/auth/session";
 import type { StoreSummary } from "@/types/storefront";
 
 export const metadata: Metadata = {
@@ -22,17 +21,13 @@ export default async function StoresPage({
   const apiParams = new URLSearchParams();
   if (initialQuery) apiParams.set("search", initialQuery);
   const suffix = apiParams.size ? `?${apiParams.toString()}` : "";
-  const [initialStores, user] = await Promise.all([
-    serverGet<StoreSummary[]>(`/storefront/stores/${suffix}`).catch(() => []),
-    getCurrentUser(),
-  ]);
+  const initialStores = await serverGet<StoreSummary[]>(`/storefront/stores/${suffix}`).catch(() => []);
 
   return (
     <StoresDirectoryClient
       initialStores={initialStores}
       initialQuery={initialQuery}
       initialScope={initialScope}
-      isAuthenticated={Boolean(user)}
     />
   );
 }

@@ -52,7 +52,7 @@ export function ProductShelfScroller({ children, label }: { children: React.Reac
 
   return (
     <div className="shelf-scroller">
-      <div ref={scrollerRef} className="shelf-scroll" role="region" aria-label={label} onScroll={scheduleUpdate}>
+      <div ref={scrollerRef} data-horizontal-scroll-region="product-shelf" className="shelf-scroll" role="region" aria-label={label} onScroll={scheduleUpdate}>
         {children}
       </div>
       <button type="button" className="shelf-scroll-control shelf-scroll-control-left" aria-label={`Scroll ${label} left`} disabled={!canScrollLeft} onClick={() => scroll(-1)}>

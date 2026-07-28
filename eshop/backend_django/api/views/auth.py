@@ -8,11 +8,18 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api.serializers.auth import CurrentUserSerializer, SignupSerializer
+from api.services.store_follows import claim_anonymous_store_follows
 
 
 def auth_response(user):
     token, _ = Token.objects.get_or_create(user=user)
     return {"token": token.key, "user": CurrentUserSerializer(user).data}
+
+
+def claim_request_store_follows(request, user):
+    claim_anonymous_store_follows(
+        user, request.headers.get("X-Anonymous-Session", "")
+    )
 
 
 class SignupAPIView(APIView):
@@ -32,12 +39,14 @@ class SignupAPIView(APIView):
             is_superuser=False,
             is_active=True,
         )
+        claim_request_store_follows(request, user)
         return Response(auth_response(user), status=status.HTTP_201_CREATED)
 
 
 class SigninAPIView(APIView):
     permission_classes = [AllowAny]
 
+    @transaction.atomic
     def post(self, request):
         identity = request.data.get("email_or_username", "").strip()
         password = request.data.get("password", "")
@@ -48,6 +57,7 @@ class SigninAPIView(APIView):
                 user = authenticate(request, username=matched_user.username, password=password)
         if user is None or not user.is_active:
             return Response({"detail": "Invalid email/username or password."}, status=status.HTTP_401_UNAUTHORIZED)
+        claim_request_store_follows(request, user)
         return Response(auth_response(user))
 
 

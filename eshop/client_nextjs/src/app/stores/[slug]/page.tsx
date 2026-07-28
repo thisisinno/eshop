@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import { MapPin, Store } from "lucide-react";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
-import { FollowButton } from "@/components/stores/FollowButton";
+import { StoreProfileFollow } from "@/components/stores/StoreProfileFollow";
 import { VerifiedBusinessBadge } from "@/components/store/VerifiedBusinessBadge";
 import { StoreProductsClient } from "@/components/stores/StoreProductsClient";
 
@@ -26,7 +26,7 @@ export default async function StorePage({ params, searchParams }: { params: Prom
           {cover ? <Image src={cover} alt={`${data.store.business_name} cover`} fill sizes="(max-width: 1024px) 100vw, 760px" className="object-cover" /> : null}
         </div>
         <div className="px-4 pb-4">
-          <div className="-mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="-mt-10 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <div className="flex items-end gap-3">
               <div className="relative grid h-20 w-20 place-items-center overflow-hidden rounded-xl border-4 border-white bg-[var(--color-primary-soft)]">
                 {logo ? <Image src={logo} alt={`${data.store.business_name} logo`} fill sizes="80px" className="object-cover" /> : <Store aria-hidden className="h-8 w-8 text-[var(--color-text)]" />}
@@ -36,9 +36,14 @@ export default async function StorePage({ params, searchParams }: { params: Prom
                 <p className="mt-1 inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)]"><MapPin aria-hidden className="h-4 w-4" />{data.store.location_summary || "Location not listed"}</p>
               </div>
             </div>
-            <FollowButton slug={data.store.slug} initialFollowing={data.store.is_following} />
+            <StoreProfileFollow
+              slug={data.store.slug}
+              storeName={data.store.business_name}
+              initialFollowing={data.store.is_following}
+              initialFollowerCount={data.store.follower_count}
+              productCount={data.store.product_count}
+            />
           </div>
-          <p className="mt-4 text-sm text-[var(--color-text-secondary)]">{data.store.follower_count} followers · {data.store.product_count} products</p>
           {data.store.address_description ? <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--color-text-secondary)]">{data.store.address_description}</p> : null}
           <StoreProductsClient slug={slug} categories={data.store.categories} initialData={data} initialSearch={sp.search || ""} initialCategory={sp.category || ""} initialSort={sp.sort || "newest"} />
         </div>

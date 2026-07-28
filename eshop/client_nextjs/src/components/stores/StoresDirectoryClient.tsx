@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { Search, Store, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -14,12 +13,10 @@ export function StoresDirectoryClient({
   initialStores,
   initialQuery,
   initialScope,
-  isAuthenticated,
 }: {
   initialStores: StoreSummary[];
   initialQuery: string;
   initialScope: Scope;
-  isAuthenticated: boolean;
 }) {
   const [query, setQuery] = useState(initialQuery);
   const [scope, setScope] = useState<Scope>(initialScope);
@@ -81,7 +78,12 @@ export function StoresDirectoryClient({
     setVisible(true);
   }
 
-  const followingRequiresSignIn = scope === "following" && !isAuthenticated;
+  function handleFollowChange(storeId: number, isFollowing: boolean, followerCount: number) {
+    setStores((current) => current.map((store) => store.id === storeId
+      ? { ...store, is_following: isFollowing, follower_count: followerCount }
+      : store));
+  }
+
   const emptyTitle = query
     ? "No stores found"
     : scope === "following"
@@ -116,23 +118,18 @@ export function StoresDirectoryClient({
             />
             {query ? <button type="button" aria-label="Clear store search" onClick={() => setQuery("")} className="absolute right-1.5 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-black"><X aria-hidden className="h-4 w-4" /></button> : null}
           </label>
-          <div className="mt-3 flex gap-2" role="group" aria-label="Store scope">
+          <div className="mt-3 flex items-center justify-between" role="tablist" aria-label="Store scope">
             {(["all", "following"] as const).map((value) => {
               const active = scope === value;
-              return <button key={value} type="button" aria-pressed={active} onClick={() => selectScope(value)} className={`h-9 rounded-full border px-4 text-sm font-bold transition active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black ${active ? "border-black bg-black text-white" : "border-[var(--color-border-strong)] bg-white text-[var(--color-text)] hover:bg-[var(--color-primary-soft)]"}`}>{value === "all" ? "All" : "Following"}</button>;
+              return <button key={value} type="button" role="tab" aria-selected={active} onClick={() => selectScope(value)} className={`relative h-11 min-w-24 rounded-lg px-4 text-sm font-bold transition active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-black ${active ? "text-black after:absolute after:inset-x-5 after:bottom-0 after:h-0.5 after:rounded-full after:bg-black" : "text-[var(--color-text-secondary)] hover:bg-[var(--color-primary-soft)]"}`}>{value === "all" ? "All" : "Following"}</button>;
             })}
           </div>
         </div>
       </div>
 
-      {followingRequiresSignIn ? (
-        <div className="p-4">
-          <EmptyState title="Sign in to view followed stores">Your followed stores are linked to your SmartWear account.</EmptyState>
-          <div className="mt-4 flex justify-center"><Link href="/auth/sign-in" className="inline-flex h-11 items-center rounded-full bg-black px-5 text-sm font-bold text-white">Sign in</Link></div>
-        </div>
-      ) : displayedStores.length ? (
+      {displayedStores.length ? (
         <div className={`divide-y divide-[var(--color-border)] border-b border-[var(--color-border)] pb-[calc(76px+env(safe-area-inset-bottom))] transition-opacity md:pb-0 motion-reduce:transition-none ${loading ? "opacity-60" : "opacity-100"}`}>
-          {displayedStores.map((store) => <StoreListTile key={store.id} store={store} />)}
+          {displayedStores.map((store) => <StoreListTile key={store.id} store={store} onFollowChange={handleFollowChange} />)}
         </div>
       ) : (
         <div className="p-4">
