@@ -84,3 +84,14 @@ export const apiPut = <T>(path: string, body?: unknown) =>
 export const apiPatch = <T>(path: string, body?: unknown) =>
   request<T>(path, { method: "PATCH", body: jsonBody(body) });
 export const apiDelete = <T>(path: string) => request<T>(path, { method: "DELETE" });
+export async function apiDownload(path: string) {
+  const headers = new Headers();
+  const token = getBrowserToken();
+  if (token) headers.set("Authorization", `Token ${token}`);
+  const response = await fetch(`${API_URL}${path.startsWith("/") ? path : `/${path}`}`, { headers });
+  if (!response.ok) throw new ApiError(response.status, await response.text(), path);
+  return {
+    blob: await response.blob(),
+    filename: response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] || "SmartWear-invoice.pdf",
+  };
+}

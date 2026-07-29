@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { BellIcon } from "./icons";
 import { apiGet, apiPatch } from "@/lib/api/client";
+import { useAdminRealtime } from "@/providers/AdminRealtimeProvider";
 
 type AdminNotification = {
   id: number;
@@ -27,12 +28,17 @@ export function Notification() {
   const [notifications, setNotifications] = useState<AdminNotification[]>([]);
   const isMobile = useIsMobile();
   const unread = notifications.filter((item) => !item.is_read).length;
+  const { subscribe } = useAdminRealtime();
 
   useEffect(() => {
-    apiGet<Paginated<AdminNotification>>("/storefront/notifications/?state=pending&audience=admin")
+    const refresh = () => apiGet<Paginated<AdminNotification>>("/storefront/notifications/?state=pending&audience=admin")
       .then((data) => setNotifications(data.results.filter((item) => item.order).slice(0, 6)))
       .catch(() => setNotifications([]));
-  }, []);
+    void refresh();
+    return subscribe((event) => {
+      if (event.type === "chat.message.created" || event.type === "chat.summary.updated" || event.type === "notification.created") void refresh();
+    });
+  }, [subscribe]);
 
   async function markRead(item: AdminNotification) {
     if (!item.is_read) {

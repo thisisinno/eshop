@@ -167,6 +167,8 @@ class UserNotification(models.Model):
         LIKE = "like", "Like"
         REVIEW = "review", "Review"
         SYSTEM = "system", "System"
+        CHAT = "chat", "Chat"
+        INVOICE = "invoice", "Invoice"
 
     class LifecycleState(models.TextChoices):
         PENDING = "pending", "Pending"

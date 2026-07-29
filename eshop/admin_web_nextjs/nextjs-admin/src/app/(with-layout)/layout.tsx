@@ -2,11 +2,12 @@ import { AuthGuard } from "@/components/Auth/AuthGuard";
 import { Header } from "@/components/Layouts/header";
 import { Sidebar } from "@/components/Layouts/sidebar";
 import { type PropsWithChildren } from "react";
+import { AdminRealtimeProvider } from "@/providers/AdminRealtimeProvider";
 
 export default function WithLayout({ children }: PropsWithChildren) {
   return (
     <AuthGuard>
-      <div className="flex min-h-screen">
+      <AdminRealtimeProvider><div className="flex min-h-screen">
         <Sidebar />
 
         <div className="w-full bg-gray-2 dark:bg-[#020d1a]">
@@ -16,7 +17,7 @@ export default function WithLayout({ children }: PropsWithChildren) {
             {children}
           </main>
         </div>
-      </div>
+      </div></AdminRealtimeProvider>
     </AuthGuard>
   );
 }

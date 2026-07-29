@@ -7,3 +7,6 @@ boto3>=1.35
 python-dotenv>=1.0
 psycopg2-binary>=2.9
 gunicorn>=22.0
+channels[daphne]>=4.2,<5
+channels-redis>=4.2,<5
+reportlab>=4.2,<5

@@ -1,0 +1,19 @@
+[Unit]
+Description=SmartWear Daphne ASGI
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/eshop/backend_django
+EnvironmentFile=/srv/eshop/backend_django/.env
+ExecStart=/srv/eshop/backend_django/venv/bin/daphne -b 127.0.0.1 -p 8011 config.asgi:application
+Restart=on-failure
+RestartSec=3
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

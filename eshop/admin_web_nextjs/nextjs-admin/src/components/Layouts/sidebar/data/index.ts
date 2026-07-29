@@ -55,7 +55,11 @@ export const NAV_DATA = [
       {
         title: "Orders",
         icon: Icons.Calendar,
-        items: [{ title: "All Orders", url: "/orders" }],
+        items: [
+          { title: "All Orders", url: "/orders" },
+          { title: "Chats", url: "/chats" },
+          { title: "Invoices", url: "/invoices" },
+        ],
       },
     ],
   },

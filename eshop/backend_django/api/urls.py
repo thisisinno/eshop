@@ -11,6 +11,16 @@ from api.views.catalog import (CategoriesAPIView, CategoryDetailAPIView, Product
     ProductMediaPrimaryAPIView, ProductsAPIView, ProductFormOptionsAPIView, SiteBrandingAPIView)
 from api.views.logs import AdminActivityLogsAPIView, ProductInteractionAPIView, SystemRequestLogsAPIView, UserActivityLogsAPIView
 from api.views.orders import OrderActionAPIView, OrderDetailAPIView, OrdersAPIView
+from api.views.chats import (
+    AdminChatCloseAPIView, AdminChatDetailAPIView, AdminChatJoinAPIView, AdminChatMessagesAPIView,
+    AdminChatReadAPIView, AdminChatsAPIView, CustomerChatAPIView, CustomerChatMessagesAPIView,
+    CustomerChatReadAPIView, CustomerChatReopenAPIView, CustomerChatRequestAPIView,
+)
+from api.views.invoices import (
+    AdminInvoiceDetailAPIView, AdminInvoicesAPIView, CustomerInvoiceDetailAPIView,
+    CustomerInvoiceFromCartAPIView, CustomerInvoicePDFAPIView, CustomerInvoicesAPIView,
+)
+from api.views.realtime import RealtimeTicketAPIView
 from api.views.storefront import (
     CartAPIView, CartItemDetailAPIView, CartItemsAPIView, CustomerOrderCreateAPIView,
     MyOrderDetailAPIView, MyOrdersAPIView, ProductBookmarkAPIView, ProductBookmarksAPIView, StoreFollowAPIView,
@@ -64,6 +74,25 @@ urlpatterns = [
     path("storefront/orders/", CustomerOrderCreateAPIView.as_view()),
     path("storefront/orders/mine/", MyOrdersAPIView.as_view()),
     path("storefront/orders/mine/<int:pk>/", MyOrderDetailAPIView.as_view()),
+    path("storefront/orders/mine/<int:order_id>/chat/", CustomerChatAPIView.as_view()),
+    path("storefront/orders/mine/<int:order_id>/chat/request/", CustomerChatRequestAPIView.as_view()),
+    path("storefront/orders/mine/<int:order_id>/chat/reopen/", CustomerChatReopenAPIView.as_view()),
+    path("storefront/orders/mine/<int:order_id>/chat/messages/", CustomerChatMessagesAPIView.as_view()),
+    path("storefront/orders/mine/<int:order_id>/chat/read/", CustomerChatReadAPIView.as_view()),
+    path("order-chats/", AdminChatsAPIView.as_view()),
+    path("order-chats/<int:chat_id>/", AdminChatDetailAPIView.as_view()),
+    path("order-chats/<int:chat_id>/join/", AdminChatJoinAPIView.as_view()),
+    path("order-chats/<int:chat_id>/messages/", AdminChatMessagesAPIView.as_view()),
+    path("order-chats/<int:chat_id>/read/", AdminChatReadAPIView.as_view()),
+    path("order-chats/<int:chat_id>/close/", AdminChatCloseAPIView.as_view()),
+    path("storefront/invoices/from-cart/", CustomerInvoiceFromCartAPIView.as_view()),
+    path("storefront/invoices/mine/", CustomerInvoicesAPIView.as_view()),
+    path("storefront/invoices/mine/<int:invoice_id>/", CustomerInvoiceDetailAPIView.as_view()),
+    path("storefront/invoices/mine/<int:invoice_id>/pdf/", CustomerInvoicePDFAPIView.as_view()),
+    path("invoices/", AdminInvoicesAPIView.as_view()),
+    path("invoices/<int:invoice_id>/", AdminInvoiceDetailAPIView.as_view()),
+    path("invoices/<int:invoice_id>/pdf/", CustomerInvoicePDFAPIView.as_view()),
+    path("realtime/tickets/", RealtimeTicketAPIView.as_view()),
     path("storefront/notifications/", StorefrontNotificationsAPIView.as_view()),
     path("storefront/notifications/unread-count/", StorefrontNotificationUnreadCountAPIView.as_view()),
     path("storefront/notifications/read-all/", StorefrontNotificationReadAllAPIView.as_view()),

@@ -132,8 +132,42 @@ export type OrderListItem = {
   items_count: number;
   total_quantity: number;
   preview_items: OrderPreviewItem[];
+  chat: OrderChatSummary | null;
   created_at: string;
   updated_at: string;
+};
+export type OrderChatSummary = {
+  id: number;
+  status: "requested" | "open" | "closed";
+  unread_count: number;
+  latest_message_preview: string;
+  latest_message_at: string | null;
+  assigned_admin_name: string | null;
+};
+export type ChatMessage = {
+  id: number; chat: number; sender: number; sender_name: string;
+  sender_role: "customer" | "admin" | "system"; body: string;
+  client_message_id: string; created_at: string;
+};
+export type OrderChat = {
+  id: number; order: number; order_number: string; order_status: string;
+  status: "requested" | "open" | "closed"; assigned_admin: number | null;
+  assigned_admin_name: string | null; close_reason: string; last_message_at: string | null;
+};
+export type InvoiceItem = {
+  id: number; product_id_snapshot: string; product_name_snapshot: string;
+  product_sku_snapshot: string; product_media_url: string; trader_name_snapshot: string;
+  selected_specifications_snapshot: SelectedSpecification[]; quantity: number;
+  unit_price: string; line_discount: string; line_total: string; sort_order: number;
+};
+export type Invoice = {
+  id: number; invoice_number: string; document_type: "proforma" | "order_invoice";
+  status: "issued" | "paid" | "void"; currency: string; total_amount: string;
+  order: number | null; order_number: string | null; issued_at: string; pdf_url: string;
+  subtotal_amount?: string; discount_amount?: string; delivery_fee?: string;
+  customer_name_snapshot?: string; customer_email_snapshot?: string;
+  customer_phone_snapshot?: string; customer_address_snapshot?: string;
+  company_name_snapshot?: string; items?: InvoiceItem[];
 };
 export type OrderDetailItem = {
   id: number;

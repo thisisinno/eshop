@@ -413,5 +413,7 @@ class CustomerOrderCreateSerializer(serializers.Serializer):
                     selected_specifications_snapshot=resolved.snapshot,
                 )
             order.recalculate_totals()
+            from api.services.invoices import create_order_invoice
+            create_order_invoice(order)
             cart.items.all().delete()
         return order

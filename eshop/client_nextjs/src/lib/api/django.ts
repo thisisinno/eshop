@@ -41,3 +41,12 @@ export async function djangoFetch<T>(path: string, init: RequestInit = {}, token
 }
 
 export const serverGet = <T>(path: string, init?: RequestInit) => djangoFetch<T>(path, { ...init, method: "GET" });
+
+export async function djangoRawFetch(path: string, init: RequestInit = {}, token?: string | null) {
+  const headers = new Headers(init.headers);
+  const resolvedToken = token === undefined ? await getServerToken() : token;
+  if (resolvedToken) headers.set("Authorization", `Token ${resolvedToken}`);
+  return fetch(`${API_URL}${path.startsWith("/") ? path : `/${path}`}`, {
+    ...init, headers, cache: "no-store",
+  });
+}

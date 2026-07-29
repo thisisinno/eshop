@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Minus, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Check, FileDown, Loader2, Minus, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Cart } from "@/types/storefront";
@@ -10,6 +10,8 @@ import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import { ButtonLink } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useCart } from "./CartProvider";
+import { useRouteFeedback } from "@/hooks/useRouteFeedback";
+import type { Invoice } from "@/types/storefront";
 
 const money = (amount: string, currency = "TZS") => `${currency} ${Number(amount).toLocaleString()}`;
 
@@ -17,6 +19,24 @@ export function CartClient({ initialCart }: { initialCart: Cart }) {
   const [cart, setCart] = useState(initialCart);
   const [busy, setBusy] = useState<number | null>(null);
   const { setCartState } = useCart();
+  const [invoiceState, setInvoiceState] = useState<"idle" | "loading" | "complete">("idle");
+  const checkout = useRouteFeedback("/checkout");
+
+  async function getInvoice() {
+    setInvoiceState("loading");
+    const response = await fetch("/api/storefront/invoices/from-cart/", { method: "POST" });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({})) as { detail?: string };
+      setInvoiceState("idle"); toast.error(error.detail || "Could not create invoice."); return;
+    }
+    const invoice = await response.json() as Invoice;
+    const download = document.createElement("a");
+    download.href = `/api/storefront/invoices/${invoice.id}/pdf/`;
+    download.download = `SmartWear-${invoice.invoice_number}.pdf`;
+    document.body.appendChild(download); download.click(); download.remove();
+    setInvoiceState("complete"); toast.success("Invoice ready.");
+    window.setTimeout(() => setInvoiceState("idle"), 2000);
+  }
 
   function syncCart(nextCart: Cart) {
     setCart(nextCart);
@@ -82,14 +102,17 @@ export function CartClient({ initialCart }: { initialCart: Cart }) {
             );
           })}
         </div>
-        <aside className="sticky bottom-[calc(76px+env(safe-area-inset-bottom))] mt-4 border-t border-[var(--color-border)] bg-white/95 px-4 py-3 backdrop-blur md:static md:bg-white md:p-0 md:pt-4">
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span>Subtotal</span><b>{money(cart.subtotal, cart.items[0]?.product.currency)}</b></div>
-            <div className="flex justify-between"><span>Delivery</span><b>{Number(cart.delivery_fee) > 0 ? money(cart.delivery_fee, cart.items[0]?.product.currency) : "Free"}</b></div>
-            <div className="flex justify-between border-t border-[var(--color-border)] pt-2 text-base"><span>Total</span><b>{money(cart.grand_total, cart.items[0]?.product.currency)}</b></div>
-          </div>
-          <div className="mt-3 flex justify-end">
-            <ButtonLink href="/checkout" className="h-11 rounded-full bg-[var(--color-black)] px-6 text-white hover:bg-[var(--color-primary-hover)]">Checkout</ButtonLink>
+        <aside className="sticky bottom-[calc(76px+env(safe-area-inset-bottom))] mt-4 rounded-2xl border border-[var(--color-border)] bg-white/95 p-4 shadow-lg backdrop-blur md:static">
+          <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">Total</p>
+          <p className="mt-1 text-2xl font-black">{money(cart.grand_total, cart.items[0]?.product.currency)}</p>
+          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Subtotal {money(cart.subtotal, cart.items[0]?.product.currency)} · Delivery {Number(cart.delivery_fee) > 0 ? money(cart.delivery_fee, cart.items[0]?.product.currency) : "Free"}</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <button onClick={getInvoice} disabled={invoiceState === "loading"} className="inline-flex h-11 items-center gap-2 rounded-full border border-black px-4 text-sm font-bold">
+              {invoiceState === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : invoiceState === "complete" ? <Check className="h-4 w-4" /> : <FileDown className="h-4 w-4" />}Get invoice
+            </button>
+            <Link href="/checkout" onClick={checkout.onClick} className="inline-flex h-11 items-center gap-2 rounded-full bg-black px-5 text-sm font-bold text-white">
+              {checkout.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : checkout.complete ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}Checkout
+            </Link>
           </div>
         </aside>
       </div>

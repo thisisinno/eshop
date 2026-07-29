@@ -1,0 +1,12 @@
+"use client";
+import { apiDownload, apiGet, apiPost } from "@/lib/api/client";
+import { use, useEffect, useState } from "react";
+type Invoice = { id: number; invoice_number: string; document_type: string; status: string; currency: string; subtotal_amount: string; discount_amount: string; delivery_fee: string; total_amount: string; customer_name_snapshot: string; items: { id: number; product_name_snapshot: string; quantity: number; line_total: string }[] };
+export default function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params); const [invoice, setInvoice] = useState<Invoice | null>(null);
+  useEffect(() => { apiGet<Invoice>(`/invoices/${id}/`).then(setInvoice); }, [id]);
+  async function action(next: "paid" | "void") { setInvoice(await apiPost<Invoice>(`/invoices/${id}/`, { action: next, reason: next === "void" ? prompt("Void reason") || "" : "" })); }
+  async function download() { const file = await apiDownload(`/invoices/${id}/pdf/`); const url = URL.createObjectURL(file.blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = file.filename; anchor.click(); URL.revokeObjectURL(url); }
+  if (!invoice) return <p>Loading invoice…</p>;
+  return <div className="rounded-[10px] bg-white p-6 shadow-1 dark:bg-gray-dark"><div className="flex justify-between"><div><p className="text-sm uppercase text-dark-5">{invoice.document_type.replace("_", " ")}</p><h1 className="text-2xl font-bold text-dark dark:text-white">{invoice.invoice_number}</h1><p className="capitalize text-dark-5">{invoice.status} · {invoice.customer_name_snapshot}</p></div><div className="flex gap-2"><button onClick={download} className="rounded-lg border px-4 py-2">Download</button>{invoice.status === "issued" && <><button onClick={() => action("paid")} className="rounded-lg bg-primary px-4 py-2 text-white">Mark paid</button><button onClick={() => action("void")} className="rounded-lg bg-dark px-4 py-2 text-white">Void</button></>}</div></div><div className="mt-8 divide-y">{invoice.items.map((item) => <div key={item.id} className="flex justify-between py-3"><span>{item.quantity} × {item.product_name_snapshot}</span><strong>{invoice.currency} {Number(item.line_total).toLocaleString()}</strong></div>)}</div><div className="ml-auto mt-6 max-w-sm border-t pt-4 text-xl font-bold">Total: {invoice.currency} {Number(invoice.total_amount).toLocaleString()}</div></div>;
+}

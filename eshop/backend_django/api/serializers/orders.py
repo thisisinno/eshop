@@ -67,13 +67,14 @@ class OrderStatusHistorySerializer(serializers.ModelSerializer):
 
 class OrderListSerializer(serializers.ModelSerializer):
     preview_items = serializers.SerializerMethodField()
+    chat = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
         fields = (
             "id", "order_number", "customer_full_name", "customer_phone", "customer_email",
             "status", "payment_status", "source", "total_amount", "currency", "items_count",
-            "total_quantity", "preview_items", "created_at", "updated_at",
+            "total_quantity", "preview_items", "chat", "created_at", "updated_at",
         )
 
     def get_preview_items(self, obj):
@@ -86,6 +87,19 @@ class OrderListSerializer(serializers.ModelSerializer):
             }
             for item in items
         ]
+
+    def get_chat(self, obj):
+        chat_id = getattr(obj, "chat_summary_id", None)
+        if not chat_id:
+            return None
+        return {
+            "id": chat_id,
+            "status": obj.chat_summary_status,
+            "unread_count": obj.chat_unread_count,
+            "latest_message_preview": obj.chat_latest_message or "",
+            "latest_message_at": obj.chat_latest_message_at,
+            "assigned_admin_name": obj.chat_assigned_admin_name or None,
+        }
 
 
 class OrderDetailSerializer(serializers.ModelSerializer):

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { useRealtimeSocket, type RealtimeEvent } from "@/hooks/useRealtimeSocket";
 
 type NotificationState = {
   unreadCount: number;
@@ -21,6 +22,21 @@ export function NotificationProvider({ initialUnreadCount, children }: { initial
     const data = await response.json() as { count: number };
     setUnreadCount(data.count);
   }, []);
+
+  const onRealtimeEvent = useCallback((event: RealtimeEvent) => {
+    window.dispatchEvent(new CustomEvent("smartwear:realtime", { detail: event }));
+    if (event.type === "chat.message.created" || event.type === "invoice.created" || event.type === "notification.created") {
+      setUnreadCount((current) => current + 1);
+    }
+    if (event.type === "notification.read") {
+      setUnreadCount((current) => Math.max(0, current - 1));
+    }
+  }, []);
+  useRealtimeSocket({
+    scope: "customer_realtime",
+    onEvent: onRealtimeEvent,
+    onRecovered: refreshUnreadCount,
+  });
 
   const value = useMemo<NotificationState>(() => ({
     unreadCount,

@@ -38,6 +38,8 @@ ALLOWED_HOSTS = comma_list("ALLOWED_HOSTS", "localhost,127.0.0.1,eshop.schoolsof
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
+    "channels",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -81,6 +83,19 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
+
+REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+WEBSOCKET_ALLOWED_ORIGINS = comma_list(
+    "WEBSOCKET_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
+)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {"hosts": [REDIS_URL]},
+    }
+}
 
 
 # Database

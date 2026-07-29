@@ -1,4 +1,5 @@
-from django.db.models import BooleanField, Count, Exists, F, OuterRef, Q, Value
+from django.db.models import BooleanField, Count, Exists, F, IntegerField, OuterRef, Q, Subquery, Value
+from django.db.models.functions import Coalesce, Concat
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -9,7 +10,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.models import BrandStatus, BrandStatusView, Cart, CartItem, Product, ProductBookmark, ProductCategory, SiteBranding, StoreFollow, TraderProfile, UserActivityLog, UserNotification
+from api.models import BrandStatus, BrandStatusView, Cart, CartItem, OrderChat, OrderChatMessage, OrderChatParticipant, Product, ProductBookmark, ProductCategory, SiteBranding, StoreFollow, TraderProfile, UserActivityLog, UserNotification
 from api.serializers.orders import OrderDetailSerializer, OrderListSerializer
 from api.serializers.storefront import (
     CartItemWriteSerializer, CartSerializer, CustomerOrderCreateSerializer, PublicCategorySerializer,
@@ -473,7 +474,31 @@ class MyOrdersAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        orders = request.user.orders.prefetch_related("items").order_by("-created_at")
+        participant = OrderChatParticipant.objects.filter(
+            chat_id=OuterRef("chat__id"), user=request.user
+        )
+        latest = OrderChatMessage.objects.filter(chat_id=OuterRef("chat__id")).order_by("-created_at", "-id")
+        orders = request.user.orders.prefetch_related("items").annotate(
+            chat_summary_id=F("chat__id"),
+            chat_summary_status=F("chat__status"),
+            chat_latest_message=Subquery(latest.values("body")[:1]),
+            chat_latest_message_at=Subquery(latest.values("created_at")[:1]),
+            chat_assigned_admin_name=Concat(
+                F("chat__assigned_admin__first_name"), Value(" "),
+                F("chat__assigned_admin__last_name"),
+            ),
+            chat_last_read_id=Coalesce(
+                Subquery(participant.values("last_read_message_id")[:1], output_field=IntegerField()),
+                Value(0),
+            ),
+        ).annotate(
+            chat_unread_count=Count(
+                "chat__messages",
+                filter=Q(chat__messages__id__gt=F("chat_last_read_id"))
+                & ~Q(chat__messages__sender=request.user),
+                distinct=True,
+            )
+        ).order_by("-created_at")
         return Response(OrderListSerializer(orders, many=True, context={"request": request}).data)
 
 
