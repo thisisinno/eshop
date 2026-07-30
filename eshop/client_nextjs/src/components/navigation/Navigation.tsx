@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   Bell,
   Bookmark,
@@ -54,6 +54,17 @@ function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
+const subscribeToHydration = () => () => {};
+
+/**
+ * Pathname/search-param values can change while the persistent shell is
+ * hydrating. Keep route-dependent presentation on the same server snapshot
+ * for the hydration pass, then apply the current client route.
+ */
+function useHydrated() {
+  return useSyncExternalStore(subscribeToHydration, () => true, () => false);
+}
+
 function NavBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   const label = count > 99 ? "99+" : String(count);
@@ -78,8 +89,9 @@ function NavigationAction({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const hydrated = useHydrated();
   const [targetPath, targetQuery] = href.split("?");
-  const active = isActive(pathname, targetPath)
+  const active = hydrated && isActive(pathname, targetPath)
     && (targetQuery
       ? Array.from(new URLSearchParams(targetQuery)).every(([key, value]) => searchParams.get(key) === value)
       : true);
@@ -178,9 +190,10 @@ export function LeftNav({ user, canPost, branding }: { user: User | null; canPos
 
 export function BottomNav({ user, canPost }: { user: User | null; canPost: boolean }) {
   const pathname = usePathname();
+  const hydrated = useHydrated();
   const { unreadCount } = useNotifications();
   const { count: myListCount } = useMyList();
-  const suppressFab = pathname === "/cart" || pathname === "/checkout" || pathname.startsWith("/checkout/");
+  const suppressFab = hydrated && (pathname === "/cart" || pathname === "/checkout" || pathname.startsWith("/checkout/"));
   return (
     <>
       {canPost && !suppressFab ? (
@@ -205,8 +218,9 @@ export function BottomNav({ user, canPost }: { user: User | null; canPost: boole
 function DesktopMoreNavigation({ user, canPost, pathname }: { user: User | null; canPost: boolean; pathname: string }) {
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
+  const hydrated = useHydrated();
   const items = useMemo(() => moreItems(canPost).filter((item) => item.href !== "/search"), [canPost]);
-  const moreActive = items.some((item) => {
+  const moreActive = hydrated && items.some((item) => {
     const [itemPath, itemQuery] = item.href.split("?");
     return isActive(pathname, itemPath)
       && (!itemQuery || Array.from(new URLSearchParams(itemQuery)).every(([key, value]) => searchParams.get(key) === value));
