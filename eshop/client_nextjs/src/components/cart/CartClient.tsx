@@ -12,6 +12,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useCart } from "./CartProvider";
 import { useRouteFeedback } from "@/hooks/useRouteFeedback";
 import type { Invoice } from "@/types/storefront";
+import { downloadResponse } from "@/lib/download";
+import { ListTile, listTileActionClass } from "@/components/ui/ListTile";
 
 const money = (amount: string, currency = "TZS") => `${currency} ${Number(amount).toLocaleString()}`;
 
@@ -23,19 +25,23 @@ export function CartClient({ initialCart }: { initialCart: Cart }) {
   const checkout = useRouteFeedback("/checkout");
 
   async function getInvoice() {
+    if (invoiceState === "loading") return;
     setInvoiceState("loading");
-    const response = await fetch("/api/storefront/invoices/from-cart/", { method: "POST" });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({})) as { detail?: string };
-      setInvoiceState("idle"); toast.error(error.detail || "Could not create invoice."); return;
+    try {
+      const response = await fetch("/api/storefront/invoices/from-cart/", { method: "POST" });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({})) as { detail?: string };
+        throw new Error(error.detail || "Could not create invoice.");
+      }
+      const invoice = await response.json() as Invoice;
+      await downloadResponse(`/api/storefront/invoices/${invoice.id}/pdf/`, `SmartWear-${invoice.invoice_number}.pdf`);
+      setInvoiceState("complete");
+      toast.success("Invoice downloaded.");
+      window.setTimeout(() => setInvoiceState("idle"), 2000);
+    } catch (error) {
+      setInvoiceState("idle");
+      toast.error(error instanceof Error ? error.message : "Could not download invoice.");
     }
-    const invoice = await response.json() as Invoice;
-    const download = document.createElement("a");
-    download.href = `/api/storefront/invoices/${invoice.id}/pdf/`;
-    download.download = `SmartWear-${invoice.invoice_number}.pdf`;
-    document.body.appendChild(download); download.click(); download.remove();
-    setInvoiceState("complete"); toast.success("Invoice ready.");
-    window.setTimeout(() => setInvoiceState("idle"), 2000);
   }
 
   function syncCart(nextCart: Cart) {
@@ -102,19 +108,19 @@ export function CartClient({ initialCart }: { initialCart: Cart }) {
             );
           })}
         </div>
-        <aside className="sticky bottom-[calc(76px+env(safe-area-inset-bottom))] mt-4 rounded-2xl border border-[var(--color-border)] bg-white/95 p-4 shadow-lg backdrop-blur md:static">
-          <p className="text-xs font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">Total</p>
-          <p className="mt-1 text-2xl font-black">{money(cart.grand_total, cart.items[0]?.product.currency)}</p>
-          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">Subtotal {money(cart.subtotal, cart.items[0]?.product.currency)} · Delivery {Number(cart.delivery_fee) > 0 ? money(cart.delivery_fee, cart.items[0]?.product.currency) : "Free"}</p>
-          <div className="mt-4 flex justify-end gap-2">
-            <button onClick={getInvoice} disabled={invoiceState === "loading"} className="inline-flex h-11 items-center gap-2 rounded-full border border-black px-4 text-sm font-bold">
-              {invoiceState === "loading" ? <Loader2 className="h-4 w-4 animate-spin" /> : invoiceState === "complete" ? <Check className="h-4 w-4" /> : <FileDown className="h-4 w-4" />}Get invoice
-            </button>
-            <Link href="/checkout" onClick={checkout.onClick} className="inline-flex h-11 items-center gap-2 rounded-full bg-black px-5 text-sm font-bold text-white">
-              {checkout.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : checkout.complete ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}Checkout
-            </Link>
+        <ListTile className="sticky bottom-[calc(76px+env(safe-area-inset-bottom))] mt-4 grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1 border-y border-[var(--color-border)] bg-white/95 px-2 py-2 backdrop-blur md:static sm:gap-2 sm:px-4">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--color-text-secondary)]">Total</p>
+            <p className="truncate text-lg font-black sm:text-xl">{money(cart.grand_total, cart.items[0]?.product.currency)}</p>
+            <p className="truncate text-[10px] text-[var(--color-text-secondary)] sm:text-xs">Subtotal {money(cart.subtotal, cart.items[0]?.product.currency)} · Delivery {Number(cart.delivery_fee) > 0 ? money(cart.delivery_fee, cart.items[0]?.product.currency) : "Free"}</p>
           </div>
-        </aside>
+          <button onClick={getInvoice} disabled={invoiceState === "loading"} aria-busy={invoiceState === "loading" || undefined} className={listTileActionClass}>
+            {invoiceState === "loading" ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : invoiceState === "complete" ? <Check className="h-4 w-4" /> : <FileDown className="h-4 w-4" />}<span>Invoice</span>
+          </button>
+          <Link href="/checkout" onClick={checkout.onClick} aria-busy={checkout.loading || undefined} className={`${listTileActionClass} border-black bg-black text-white hover:bg-neutral-800`}>
+            {checkout.loading ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : checkout.complete ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}<span>Checkout</span>
+          </Link>
+        </ListTile>
       </div>
     </section>
   );

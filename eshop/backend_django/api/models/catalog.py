@@ -162,7 +162,10 @@ class Product(models.Model):
             errors["branch"] = "The selected branch does not belong to the selected trader."
         if self.specifications is not None and not isinstance(self.specifications, dict):
             errors["specifications"] = "Specifications must be an object."
-        if self.status == self.Status.ACTIVE:
+        # New active products are validated by ProductWriteSerializer with the
+        # submitted nested specification groups. Model-level relation checks
+        # cannot run until the product has a primary key.
+        if self.status == self.Status.ACTIVE and self.pk:
             # Local import avoids a models -> services -> models import cycle.
             from api.services.products import get_product_activation_issues
             errors.update(get_product_activation_issues(self))

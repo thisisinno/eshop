@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api.models import BrandStatus, BrandStatusView, Cart, CartItem, OrderChat, OrderChatMessage, OrderChatParticipant, Product, ProductBookmark, ProductCategory, SiteBranding, StoreFollow, TraderProfile, UserActivityLog, UserNotification
-from api.serializers.orders import OrderDetailSerializer, OrderListSerializer
+from api.serializers.orders import CustomerOrderDetailSerializer, OrderDetailSerializer, OrderListSerializer
 from api.serializers.storefront import (
     CartItemWriteSerializer, CartSerializer, CustomerOrderCreateSerializer, PublicCategorySerializer,
     PublicProductCardSerializer, PublicProductDetailSerializer, PublicStoreDetailSerializer, PublicStoreSummarySerializer,
@@ -325,7 +325,11 @@ class StoreFollowAPIView(APIView):
                 "follower_count": trader.followers.count(),
                 "created": created,
             },
-            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+            status=(
+                status.HTTP_201_CREATED
+                if created or request.user.is_authenticated
+                else status.HTTP_200_OK
+            ),
         )
 
     def delete(self, request, slug):
@@ -506,8 +510,16 @@ class MyOrderDetailAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        order = get_object_or_404(request.user.orders.prefetch_related("items", "status_history"), pk=pk)
-        return Response(OrderDetailSerializer(order, context={"request": request}).data)
+        order = get_object_or_404(
+            request.user.orders.select_related(
+                "chat__assigned_admin", "chat__opened_by", "chat__closed_by", "invoice",
+            ).prefetch_related(
+                "items__product__media", "status_history__changed_by",
+                "chat__messages__sender",
+            ),
+            pk=pk,
+        )
+        return Response(CustomerOrderDetailSerializer(order, context={"request": request}).data)
 
 
 class StorefrontNotificationsAPIView(APIView):

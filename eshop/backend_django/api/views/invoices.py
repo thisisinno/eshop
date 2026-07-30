@@ -10,6 +10,15 @@ from api.models import Invoice
 from api.serializers.invoices import InvoiceDetailSerializer, InvoiceListSerializer
 from api.services.invoice_pdf import render_invoice_pdf
 from api.services.invoices import create_order_invoice, create_proforma_from_cart
+from api.services.order_history_pdf import render_order_history_pdf
+
+
+def _order_export_queryset(user):
+    return user.orders.select_related(
+        "chat__assigned_admin", "chat__opened_by", "chat__closed_by", "invoice",
+    ).prefetch_related(
+        "items__product__media", "status_history__changed_by", "chat__messages__sender",
+    ).order_by("-created_at", "-id")
 
 
 class CustomerInvoicesAPIView(APIView):
@@ -43,12 +52,29 @@ class CustomerInvoicePDFAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, invoice_id):
-        queryset = Invoice.objects.select_related("order").prefetch_related("items")
+        queryset = Invoice.objects.select_related("order").prefetch_related(
+            "items__product__media",
+        )
         if not (request.user.is_superuser or request.user.has_perm("api.view_invoice")):
             queryset = queryset.filter(customer_user=request.user)
         invoice = get_object_or_404(queryset, pk=invoice_id)
         response = HttpResponse(render_invoice_pdf(invoice), content_type="application/pdf")
         response["Content-Disposition"] = f'attachment; filename="SmartWear-{invoice.invoice_number}.pdf"'
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
+
+
+class CustomerOrdersExportPDFAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        generated = timezone.localdate().isoformat()
+        response = HttpResponse(
+            render_order_history_pdf(request.user, _order_export_queryset(request.user)),
+            content_type="application/pdf",
+        )
+        response["Content-Disposition"] = f'attachment; filename="SmartWear-order-history-{generated}.pdf"'
         response["Cache-Control"] = "private, no-store"
         response["X-Content-Type-Options"] = "nosniff"
         return response
@@ -95,4 +121,3 @@ class AdminInvoiceDetailAPIView(APIView):
             return Response({"action": "Use paid or void."}, status=status.HTTP_400_BAD_REQUEST)
         invoice.save()
         return Response(InvoiceDetailSerializer(invoice).data)
-

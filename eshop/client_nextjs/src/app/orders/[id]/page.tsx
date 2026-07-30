@@ -2,6 +2,7 @@ import Image from "next/image";
 import { serverGet } from "@/lib/api/django";
 import { resolveMediaUrl } from "@/lib/media/resolve-media-url";
 import type { OrderDetail } from "@/types/storefront";
+import { OrderJourneyTimeline } from "@/components/orders/OrderJourneyTimeline";
 
 const money = (amount: string, currency: string) => `${currency} ${Number(amount).toLocaleString()}`;
 const label = (value: string) => value.replaceAll("_", " ");
@@ -48,6 +49,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           {order.status_history.map((item) => <li key={item.id} className="border-l border-[var(--color-border-strong)] pl-3 text-sm"><b className="capitalize">{label(item.to_status)}</b><p className="text-[var(--color-text-secondary)]">{new Date(item.created_at).toLocaleString()}</p>{item.note ? <p className="text-[var(--color-text-secondary)]">{item.note}</p> : null}</li>)}
         </ol>
       </div>
+      <OrderJourneyTimeline events={order.journey} hasChat={order.chat_snapshot !== null} />
     </section>
   );
 }

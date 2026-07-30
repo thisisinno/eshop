@@ -182,6 +182,29 @@ export type OrderDetailItem = {
   selected_specifications_snapshot: SelectedSpecification[];
 };
 export type OrderStatusHistory = { id: number; from_status: string; to_status: string; note: string; changed_by_name: string | null; created_at: string };
+export type OrderJourneyEventType =
+  | "order_created" | "order_status" | "payment_status" | "chat_requested"
+  | "chat_opened" | "chat_message" | "chat_closed" | "invoice_issued"
+  | "invoice_paid" | "invoice_voided";
+export type OrderJourneyEvent = {
+  id: string;
+  event_type: OrderJourneyEventType;
+  title: string;
+  description: string;
+  actor_name: string | null;
+  actor_role: "customer" | "admin" | "system" | null;
+  created_at: string;
+  metadata: Record<string, string | number | boolean | null>;
+};
+export type ReadOnlyOrderChatSnapshot = {
+  id: number;
+  status: "requested" | "open" | "closed";
+  requested_at: string;
+  opened_at: string | null;
+  closed_at: string | null;
+  close_reason: string;
+  assigned_admin_name: string | null;
+};
 export type OrderDetail = OrderListItem & {
   customer_country: string;
   customer_region: string;
@@ -195,6 +218,11 @@ export type OrderDetail = OrderListItem & {
   delivery_fee: string;
   items: OrderDetailItem[];
   status_history: OrderStatusHistory[];
+  chat_snapshot: ReadOnlyOrderChatSnapshot | null;
+  journey: OrderJourneyEvent[];
+  confirmed_at: string | null;
+  delivered_at: string | null;
+  cancelled_at: string | null;
 };
 export type StorefrontNotification = {
   id: number;

@@ -19,6 +19,7 @@ from api.views.chats import (
 from api.views.invoices import (
     AdminInvoiceDetailAPIView, AdminInvoicesAPIView, CustomerInvoiceDetailAPIView,
     CustomerInvoiceFromCartAPIView, CustomerInvoicePDFAPIView, CustomerInvoicesAPIView,
+    CustomerOrdersExportPDFAPIView,
 )
 from api.views.realtime import RealtimeTicketAPIView
 from api.views.storefront import (
@@ -73,6 +74,7 @@ urlpatterns = [
     path("storefront/cart/items/<int:item_id>/", CartItemDetailAPIView.as_view()),
     path("storefront/orders/", CustomerOrderCreateAPIView.as_view()),
     path("storefront/orders/mine/", MyOrdersAPIView.as_view()),
+    path("storefront/orders/mine/export/pdf/", CustomerOrdersExportPDFAPIView.as_view()),
     path("storefront/orders/mine/<int:pk>/", MyOrderDetailAPIView.as_view()),
     path("storefront/orders/mine/<int:order_id>/chat/", CustomerChatAPIView.as_view()),
     path("storefront/orders/mine/<int:order_id>/chat/request/", CustomerChatRequestAPIView.as_view()),
