@@ -1,8 +1,9 @@
 const TOKEN_KEY = "eshop_admin_token";
 
 const API_URL = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
   process.env.NEXT_PUBLIC_DJANGO_API_URL ||
-  "https://eshop.schoolsoft.online/api"
+  "/api"
 ).replace(/\/$/, "");
 
 export class ApiError extends Error {

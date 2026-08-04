@@ -19,5 +19,8 @@ coverage/
 .env
 .env.*
 !.env.example
+*.dump
+*.sql
+secrets/
 .DS_Store
 .vscode/

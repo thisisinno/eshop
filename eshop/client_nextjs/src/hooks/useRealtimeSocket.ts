@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 export type RealtimeTicketScope = "customer_realtime" | "order_chat";
 export type RealtimeEvent = { type: string; version: number; [key: string]: unknown };
 
-const WS_BASE = (process.env.NEXT_PUBLIC_DJANGO_WS_URL || "").replace(/\/$/, "");
+const WS_BASE = (process.env.NEXT_PUBLIC_WS_BASE_URL || process.env.NEXT_PUBLIC_DJANGO_WS_URL || "").replace(/\/$/, "");
 
 export function useRealtimeSocket({
   scope, chatId, onEvent, onRecovered, enabled = true,
@@ -39,7 +39,8 @@ export function useRealtimeSocket({
       });
         if (!response.ok || stoppedRef.current) return;
         const ticket = await response.json() as { ticket: string; path: string };
-        const base = WS_BASE || `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}`;
+        const origin = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}`;
+        const base = WS_BASE.startsWith("/") ? `${origin}${WS_BASE.replace(/\/ws\/?$/, "")}` : (WS_BASE || origin);
         const socket = new WebSocket(`${base}${ticket.path}?ticket=${encodeURIComponent(ticket.ticket)}`);
         socketRef.current = socket;
         socket.onopen = () => {

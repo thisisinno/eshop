@@ -23,16 +23,18 @@ load_dotenv(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-local-dev-only-change-me")
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", os.getenv("SECRET_KEY", "django-insecure-local-dev-only-change-me"))
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "true").lower() in {"1", "true", "yes", "on"}
+DEBUG = os.getenv("DJANGO_DEBUG", os.getenv("DEBUG", "true")).lower() in {"1", "true", "yes", "on"}
 
 def comma_list(name, default=""):
     return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
 
 
-ALLOWED_HOSTS = comma_list("ALLOWED_HOSTS", "localhost,127.0.0.1,eshop.schoolsoft.online")
+ALLOWED_HOSTS = comma_list("DJANGO_ALLOWED_HOSTS") or comma_list(
+    "ALLOWED_HOSTS", "localhost,127.0.0.1,eshop.schoolsoft.online"
+)
 
 
 # Application definition
@@ -55,6 +57,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -101,15 +104,16 @@ CHANNEL_LAYERS = {
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-if os.getenv("POSTGRES_DB") or os.getenv("DATABASE_NAME"):
+DB_ENGINE = os.getenv("DB_ENGINE", "").lower()
+if DB_ENGINE in {"postgres", "postgresql", "django.db.backends.postgresql"} or os.getenv("DB_NAME") or os.getenv("POSTGRES_DB") or os.getenv("DATABASE_NAME"):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.getenv("POSTGRES_DB", os.getenv("DATABASE_NAME")),
-            "USER": os.getenv("POSTGRES_USER", os.getenv("DATABASE_USER", "")),
-            "PASSWORD": os.getenv("POSTGRES_PASSWORD", os.getenv("DATABASE_PASSWORD", "")),
-            "HOST": os.getenv("POSTGRES_HOST", os.getenv("DATABASE_HOST", "localhost")),
-            "PORT": os.getenv("POSTGRES_PORT", os.getenv("DATABASE_PORT", "5432")),
+            "NAME": os.getenv("DB_NAME", os.getenv("POSTGRES_DB", os.getenv("DATABASE_NAME"))),
+            "USER": os.getenv("DB_USER", os.getenv("POSTGRES_USER", os.getenv("DATABASE_USER", ""))),
+            "PASSWORD": os.getenv("DB_PASSWORD", os.getenv("POSTGRES_PASSWORD", os.getenv("DATABASE_PASSWORD", ""))),
+            "HOST": os.getenv("DB_HOST", os.getenv("POSTGRES_HOST", os.getenv("DATABASE_HOST", "localhost"))),
+            "PORT": os.getenv("DB_PORT", os.getenv("POSTGRES_PORT", os.getenv("DATABASE_PORT", "5432"))),
         }
     }
 else:
@@ -169,6 +173,7 @@ AWS_S3_CUSTOM_DOMAIN = os.getenv(
     "AWS_S3_CUSTOM_DOMAIN",
     f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com",
 )
+PDF_IMAGE_ALLOWED_HOSTS = comma_list("PDF_IMAGE_ALLOWED_HOSTS")
 AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = None
 AWS_QUERYSTRING_AUTH = os.getenv("AWS_QUERYSTRING_AUTH", "false").lower() == "true"
@@ -188,16 +193,16 @@ if DJANGO_USE_S3:
                 "querystring_expire": AWS_QUERYSTRING_EXPIRE,
             },
         },
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     }
 else:
     MEDIA_URL = "/media/"
     STORAGES = {
         "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+        "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     }
 
-CORS_ALLOWED_ORIGINS = comma_list(
+CORS_ALLOWED_ORIGINS = comma_list("DJANGO_CORS_ALLOWED_ORIGINS") or comma_list(
     "CORS_ALLOWED_ORIGINS",
     "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
 )
@@ -205,7 +210,14 @@ for frontend_origin in (os.environ.get("FRONTEND_ORIGIN"), os.environ.get("ADMIN
     if frontend_origin and frontend_origin.rstrip("/") not in CORS_ALLOWED_ORIGINS:
         CORS_ALLOWED_ORIGINS.append(frontend_origin.rstrip("/"))
 
-CSRF_TRUSTED_ORIGINS = comma_list("CSRF_TRUSTED_ORIGINS", "https://eshop.schoolsoft.online")
+CSRF_TRUSTED_ORIGINS = comma_list("DJANGO_CSRF_TRUSTED_ORIGINS") or comma_list(
+    "CSRF_TRUSTED_ORIGINS", "https://eshop.schoolsoft.online"
+)
+
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

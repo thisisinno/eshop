@@ -5,7 +5,7 @@ function joinUrl(base: string, path: string) {
 }
 
 function backendOrigin() {
-  const apiUrl = process.env.NEXT_PUBLIC_DJANGO_API_URL || "https://eshop.schoolsoft.online/api";
+  const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_DJANGO_API_URL || "/api";
   return apiUrl.replace(/\/+$/, "").replace(/\/api\/?$/, "");
 }
 

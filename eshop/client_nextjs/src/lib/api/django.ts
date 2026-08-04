@@ -3,7 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { extractDrfErrorMessage } from "./errors";
 
-const API_URL = (process.env.DJANGO_API_URL || process.env.NEXT_PUBLIC_DJANGO_API_URL || "https://eshop.schoolsoft.online/api").replace(/\/$/, "");
+const API_URL = (process.env.API_INTERNAL_URL || process.env.DJANGO_API_URL || "https://eshop.schoolsoft.online/api").replace(/\/$/, "");
 export const TOKEN_COOKIE = "eshop_customer_token";
 export const ANON_COOKIE = "eshop_anon_session";
 

@@ -1,0 +1,44 @@
+name: smartwear-dev
+services:
+  db:
+    image: postgres:17-alpine
+    environment: {POSTGRES_DB: smartwear, POSTGRES_USER: smartwear, POSTGRES_PASSWORD: smartwear-dev}
+    ports: ["127.0.0.1:15432:5432"]
+    volumes: [postgres_dev_data:/var/lib/postgresql/data]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U smartwear -d smartwear"], interval: 5s, timeout: 5s, retries: 10}
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:16379:6379"]
+    healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 5s, retries: 10}
+  backend:
+    build: ./backend_django
+    environment:
+      DJANGO_DEBUG: "True"
+      DJANGO_SECRET_KEY: local-development-only
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,backend
+      DB_ENGINE: postgresql
+      DB_NAME: smartwear
+      DB_USER: smartwear
+      DB_PASSWORD: smartwear-dev
+      DB_HOST: db
+      DB_PORT: "5432"
+      REDIS_URL: redis://redis:6379/0
+      DJANGO_USE_S3: "False"
+    ports: ["127.0.0.1:18000:8000"]
+    depends_on: {db: {condition: service_healthy}, redis: {condition: service_healthy}}
+  client:
+    build:
+      context: ./client_nextjs
+      args: {NEXT_PUBLIC_API_BASE_URL: /api, NEXT_PUBLIC_WS_BASE_URL: /ws}
+    environment: {API_INTERNAL_URL: "http://backend:8000/api"}
+    ports: ["127.0.0.1:13001:3000"]
+    depends_on: {backend: {condition: service_started}}
+  admin:
+    build:
+      context: ./admin_web_nextjs/nextjs-admin
+      args: {NEXT_PUBLIC_API_BASE_URL: /api, NEXT_PUBLIC_WS_BASE_URL: /ws}
+    environment: {API_INTERNAL_URL: "http://backend:8000/api"}
+    ports: ["127.0.0.1:13000:3000"]
+    depends_on: {backend: {condition: service_started}}
+volumes:
+  postgres_dev_data:

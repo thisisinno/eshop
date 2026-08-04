@@ -11,7 +11,7 @@ export type AdminChatSummary = {
 export type AdminRealtimeEvent = { type: string; version: number; chat_id?: number; order_id?: number; [key: string]: unknown };
 type ContextValue = { chats: AdminChatSummary[]; unresolvedCount: number; refreshChats: () => Promise<void>; subscribe: (listener: (event: AdminRealtimeEvent) => void) => () => void };
 const Context = createContext<ContextValue | null>(null);
-const WS_BASE = (process.env.NEXT_PUBLIC_DJANGO_WS_URL || "").replace(/\/$/, "");
+const WS_BASE = (process.env.NEXT_PUBLIC_WS_BASE_URL || process.env.NEXT_PUBLIC_DJANGO_WS_URL || "").replace(/\/$/, "");
 
 export function AdminRealtimeProvider({ children }: { children: React.ReactNode }) {
   const [chats, setChats] = useState<AdminChatSummary[]>([]);
@@ -26,7 +26,8 @@ export function AdminRealtimeProvider({ children }: { children: React.ReactNode 
     if (stopped.current || !navigator.onLine) return;
     try {
       const ticket = await apiPost<{ ticket: string; path: string }>("/realtime/tickets/", { scope: "admin_realtime" });
-      const base = WS_BASE || `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}`;
+      const origin = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}`;
+      const base = WS_BASE.startsWith("/") ? `${origin}${WS_BASE.replace(/\/ws\/?$/, "")}` : (WS_BASE || origin);
       const socket = new WebSocket(`${base}${ticket.path}?ticket=${encodeURIComponent(ticket.ticket)}`);
       socket.onopen = () => { attempt.current = 0; void refreshChats(); };
       socket.onmessage = (raw) => {
